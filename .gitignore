@@ -4,3 +4,6 @@ build/
 
 # Coverage reports
 coverage/
+
+# Fuzz crashes
+fuzz/artifacts/

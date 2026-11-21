@@ -6,6 +6,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/paxel/axt-dart/badge)](https://scorecard.dev/viewer/?uri=github.com/paxel/axt-dart)
 [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=paxel_axt-dart&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=paxel_axt-dart)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fpaxel%2Faxt-dart%2Fsummer%2F.github%2Fbadges%2Fcoverage-dart.json)](coverage-floors.toml)
+[![Fuzz](https://github.com/paxel/axt-dart/actions/workflows/fuzz.yml/badge.svg?branch=summer)](https://github.com/paxel/axt-dart/actions/workflows/fuzz.yml)
 [![Release](https://img.shields.io/github/v/release/paxel/axt-dart)](https://github.com/paxel/axt-dart/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20MIT-blue)](README.md#licence)
 
