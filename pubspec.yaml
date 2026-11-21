@@ -1,0 +1,17 @@
+name: axt_protocol
+description: >-
+  The Dart library of AXT (Avro eXchange Transfer), the open standard for small
+  apps to exchange typed records. Conforms to AXT 0.1.0.
+repository: https://github.com/paxel/axt-dart
+issue_tracker: https://github.com/paxel/axt-dart/issues
+topics:
+  - avro
+  - sync
+  - interoperability
+
+environment:
+  sdk: ^3.13.4
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
