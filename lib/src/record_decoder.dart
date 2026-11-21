@@ -125,6 +125,36 @@ Object? decodeRecord(Schema writer, Schema? reader, Uint8List body) {
   return value;
 }
 
+/// Checks a decoded [value] of [schema] as [decodeRecord] does: its data
+/// depth, counted from [depthOffset], and its time values, named from
+/// [path].
+///
+/// Throws [AxtException] `UNDECODABLE` for a value deeper than
+/// [maxDataDepth] and `VALUE_INVALID` for a time value that is not valid.
+void checkValue(
+  Schema schema,
+  Object? value,
+  String path, {
+  int depthOffset = 0,
+}) {
+  if (_depth(schema, value) + depthOffset > maxDataDepth) {
+    throw const AxtException(
+      ErrorCode.undecodable,
+      'the value nests deeper than $maxDataDepth',
+    );
+  }
+  final invalid = _firstInvalidTime(schema, value, path);
+  if (invalid != null) {
+    throw AxtException(
+      ErrorCode.valueInvalid,
+      'the time value at "${invalid.path}" is not valid',
+      field: utf8.encode(invalid.path).length > maxFieldPathBytes
+          ? null
+          : invalid.path,
+    );
+  }
+}
+
 /// Throws [AxtException] `DOES_NOT_RESOLVE` unless the full names of the two
 /// record schemas match or the writer's is one of the reader's aliases
 /// (envelope.md, section 6). Avro itself compares only the unqualified names.

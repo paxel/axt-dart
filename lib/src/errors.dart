@@ -24,7 +24,8 @@ enum ErrorCode {
   typeChanged('TYPE_CHANGED'),
   fileRejected('FILE_REJECTED'),
   offerInvalid('OFFER_INVALID'),
-  notAccepted('NOT_ACCEPTED');
+  notAccepted('NOT_ACCEPTED'),
+  proposalsNotTaken('PROPOSALS_NOT_TAKEN');
 
   const ErrorCode(this.code);
 

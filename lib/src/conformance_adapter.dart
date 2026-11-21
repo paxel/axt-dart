@@ -17,6 +17,7 @@ import 'ed25519.dart' as ed25519;
 import 'file_reader.dart';
 import 'live_session.dart';
 import 'manifest.dart';
+import 'proposals.dart';
 import 'records.dart';
 import 'sealing.dart' as sealing;
 import 'shares.dart';
@@ -33,6 +34,7 @@ const List<String> implementedCategories = [
   'records',
   'file',
   'protocol',
+  'shares',
 ];
 
 /// Categories under construction that a local run asks for too, with
@@ -135,6 +137,8 @@ final Map<String, _Operation> _operations = {
   'pass_withdrawal': _passWithdrawal,
   'join_receivers': _joinReceivers,
   'offer_types': _offerTypes,
+  'owner': _owner,
+  'proposer': _proposer,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -1005,4 +1009,302 @@ Future<Map<String, Object?>> _offerTypes(Map<String, Object?> input) async {
         {'type': t.type, 'count': t.count},
     ],
   });
+}
+
+List<String> _strings(Object? value) {
+  if (value is! List<Object?> || value.any((v) => v is! String)) {
+    throw const _BadRequest('not a list of strings');
+  }
+  return value.cast<String>();
+}
+
+/// One installation of the owner of shared records (shares.md, 12 to 18).
+Future<Map<String, Object?>> _owner(Map<String, Object?> input) async {
+  final device = _object(input, 'device');
+  final receivers = [
+    for (final r
+        in (device['receivers'] as List<Object?>? ?? [])
+            .cast<Map<String, Object?>>())
+      ProposalReceiver(
+        _string(r, 'name'),
+        current: _keys(r['current']),
+        removed: _keys(r['removed']),
+        ownUser: r['own_user'] == true,
+      ),
+  ];
+  final records = [
+    for (final r
+        in (device['records'] as List<Object?>? ?? [])
+            .cast<Map<String, Object?>>())
+      OwnRecord(
+        id: _string(r, 'id'),
+        type: _string(r, 'type'),
+        version: _version(r['version'])!,
+        deleted: r['state'] == 'deleted',
+        value: (r['value'] as Map<String, Object?>?) ?? {},
+        shared: _strings(r['shared'] ?? <String>[]).toSet(),
+      ),
+  ];
+  final readers = device['readers'];
+  final owner = await ProposalOwner.start(
+    seed: _bytes(device['seed']),
+    siblings: _keys(device['siblings'] ?? <String>[]),
+    proposals: _strings(device['proposals'] ?? <String>[]).toSet(),
+    schemas: _strings(device['schemas'] ?? <String>[]),
+    receivers: receivers,
+    records: records,
+    readers: readers == null ? null : _schemaTexts(readers),
+    open: [
+      for (final o
+          in (device['open'] as List<Object?>? ?? [])
+              .cast<Map<String, Object?>>())
+        OpenProposal(
+          receiver: _string(o, 'receiver'),
+          proposalId: _string(o, 'proposal_id'),
+          id: _string(o, 'id'),
+          version: 0,
+          valueBytes: (o['value_bytes'] as int?) ?? 0,
+        ),
+    ],
+    answers: [
+      for (final a
+          in (device['answers'] as List<Object?>? ?? [])
+              .cast<Map<String, Object?>>())
+        ProposalAnswer(
+          _string(a, 'receiver'),
+          _string(a, 'proposal_id'),
+          _string(a, 'answer'),
+          _string(a, 'id'),
+          a['version']! as int,
+        ),
+    ],
+    stops: [
+      for (final st
+          in (device['stopped'] as List<Object?>? ?? [])
+              .cast<Map<String, Object?>>())
+        (
+          receiver: _string(st, 'receiver'),
+          id: st['id'] as String?,
+          type: st['type'] as String?,
+        ),
+    ],
+  );
+  final steps = input['steps'];
+  if (steps is! List<Object?>) throw const _BadRequest('steps is no list');
+  final out = <Object?>[];
+  for (final step in steps.cast<Map<String, Object?>>()) {
+    if (step.containsKey('receive')) {
+      final r = await owner.receive(_bytes(step['receive']));
+      out.add({
+        'result': r.result,
+        'replies': [for (final m in r.replies) _hex(m)],
+      });
+    } else if (step.containsKey('answer')) {
+      final a = _object(step, 'answer');
+      final r = await owner.answer(
+        _string(a, 'receiver'),
+        _string(a, 'proposal_id'),
+        _string(a, 'answer'),
+      );
+      final update = r.update;
+      out.add({
+        'made': r.made,
+        'replies': [for (final m in r.replies) _hex(m)],
+        'update': update == null
+            ? null
+            : {'version': '${update.version}', 'value': update.value},
+      });
+    } else if (step.containsKey('answered')) {
+      final a = _object(step, 'answered');
+      owner.answered(
+        _string(a, 'receiver'),
+        _string(a, 'proposal_id'),
+        _string(a, 'answer'),
+        _string(a, 'id'),
+        a['version']! as int,
+      );
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('stop')) {
+      final st = _object(step, 'stop');
+      owner.stop((
+        receiver: _string(st, 'receiver'),
+        id: st['id'] as String?,
+        type: st['type'] as String?,
+      ));
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('change')) {
+      final c = _object(step, 'change');
+      owner.change(
+        _string(c, 'id'),
+        _string(c, 'action'),
+        c['receiver'] as String?,
+      );
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('manifest')) {
+      owner.proposals = _strings(step['manifest']).toSet();
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('query')) {
+      int byKey(Object? a, Object? b) {
+        final x = a! as Map<String, Object?>;
+        final y = b! as Map<String, Object?>;
+        final first = (x['receiver']! as String).compareTo(
+          y['receiver']! as String,
+        );
+        return first != 0
+            ? first
+            : (x['proposal_id']! as String).compareTo(
+                y['proposal_id']! as String,
+              );
+      }
+
+      out.add({
+        'open': [
+          for (final p in owner.open)
+            {
+              'receiver': p.receiver,
+              'proposal_id': p.proposalId,
+              'id': p.id,
+              'message_hash': p.message == null
+                  ? null
+                  : _hex(sha256.convert(p.message!).bytes),
+            },
+        ]..sort(byKey),
+        'answers': [
+          for (final a in owner.answers)
+            {
+              'receiver': a.receiver,
+              'proposal_id': a.proposalId,
+              'answer': a.answer,
+              'id': a.id,
+              'version': a.version,
+            },
+        ]..sort(byKey),
+        'records': [
+          for (final r in [
+            ...owner.records,
+          ]..sort((a, b) => a.id.compareTo(b.id)))
+            {
+              'id': r.id,
+              'version': '${r.version}',
+              'state': r.deleted ? 'deleted' : 'there',
+              'value': r.value,
+            },
+        ],
+      });
+    } else {
+      throw const _BadRequest('a step of no known form');
+    }
+  }
+  return {'steps': out};
+}
+
+Map<String, Uint8List>? _valueBytes(Object? value) {
+  if (value == null) return null;
+  if (value is! Map<String, Object?>) {
+    throw const _BadRequest('values is no object');
+  }
+  return {for (final e in value.entries) e.key: _bytes(e.value)};
+}
+
+/// One installation of a receiver that proposes changes (shares.md, 13 to 16).
+Future<Map<String, Object?>> _proposer(Map<String, Object?> input) async {
+  final device = _object(input, 'device');
+  final manifests = <String, ({int revision, Set<String> proposals})>{
+    for (final e
+        in ((device['manifests'] as Map<String, Object?>?) ?? {}).entries)
+      e.key: (
+        revision: (e.value! as Map)['revision'] as int,
+        proposals: _strings((e.value! as Map)['proposals']).toSet(),
+      ),
+  };
+  final proposer = await ProposalProposer.start(
+    seed: _bytes(device['seed']),
+    owner: _strings(device['owner']),
+    manifests: manifests,
+    records: [
+      for (final r
+          in (device['records'] as List<Object?>? ?? [])
+              .cast<Map<String, Object?>>())
+        HeldOwnerRecord(
+          id: _string(r, 'id'),
+          type: _string(r, 'type'),
+          version: _version(r['version'])!,
+          last: _string(r, 'last'),
+          schema: _string(r, 'schema'),
+          values: _valueBytes(r['values']) ?? {},
+          deleted: r['deleted'] == true,
+        ),
+    ],
+    proposalIds: _strings(device['proposal_ids'] ?? <String>[]),
+  );
+  final steps = input['steps'];
+  if (steps is! List<Object?>) throw const _BadRequest('steps is no list');
+  final out = <Object?>[];
+  for (final step in steps.cast<Map<String, Object?>>()) {
+    if (step.containsKey('propose')) {
+      final p = _object(step, 'propose');
+      final values = p['values'];
+      if (values is! Map<String, Object?>) {
+        throw const _BadRequest('values is no object');
+      }
+      final message = await proposer.propose(
+        _string(p, 'id'),
+        _string(p, 'to'),
+        {
+          for (final e in values.entries)
+            e.key: e.value == null ? null : _bytes(e.value),
+        },
+        relay: p['relay'] == true,
+      );
+      out.add({'message': message == null ? null : _hex(message)});
+    } else if (step.containsKey('receive')) {
+      final r = await proposer.receive(_bytes(step['receive']));
+      out.add({
+        'result': r.result,
+        'replies': [for (final m in r.replies) _hex(m)],
+      });
+    } else if (step.containsKey('record')) {
+      final r = _object(step, 'record');
+      proposer.record(
+        _string(r, 'id'),
+        _string(r, 'kind'),
+        _version(r['version'])!,
+        _valueBytes(r['values']),
+      );
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('manifest')) {
+      final m = _object(step, 'manifest');
+      proposer.manifest(
+        _string(m, 'key'),
+        m['revision']! as int,
+        _strings(m['proposals']).toSet(),
+      );
+      out.add(<String, Object?>{});
+    } else if (step.containsKey('remove')) {
+      out.add({
+        'messages': [
+          for (final m in await proposer.remove(_string(step, 'remove')))
+            _hex(m),
+        ],
+      });
+    } else if (step.containsKey('connect')) {
+      out.add({
+        'messages': [
+          for (final m in proposer.connect(_string(step, 'connect'))) _hex(m),
+        ],
+      });
+    } else if (step.containsKey('days')) {
+      out.add({
+        'messages': [
+          for (final m in proposer.days(step['days']! as int)) _hex(m),
+        ],
+      });
+    } else if (step.containsKey('query')) {
+      final q = proposer.query(_string(step, 'query'));
+      out.add({'status': q?.status, 'resend': q?.resend ?? false});
+    } else {
+      throw const _BadRequest('a step of no known form');
+    }
+  }
+  return {'steps': out};
 }
