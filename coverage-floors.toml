@@ -6,4 +6,4 @@
 [[parts]]
 name = "dart"
 lcov = "coverage/dart.lcov"
-floor = 0.00
+floor = 99.90

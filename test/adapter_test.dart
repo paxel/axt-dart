@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
 
-import '../tool/adapter.dart';
+import 'package:axt_protocol/src/conformance_adapter.dart';
 
 void main() {
   test('hello names the library and its categories', () {
