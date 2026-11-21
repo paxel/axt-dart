@@ -17,7 +17,8 @@ enum ErrorCode {
   notOpened('NOT_OPENED'),
   paddingInvalid('PADDING_INVALID'),
   deviceRejected('DEVICE_REJECTED'),
-  joinInvalid('JOIN_INVALID');
+  joinInvalid('JOIN_INVALID'),
+  manifestInvalid('MANIFEST_INVALID');
 
   const ErrorCode(this.code);
 

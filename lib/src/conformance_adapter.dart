@@ -15,6 +15,7 @@ import 'record_decoder.dart';
 import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
+import 'manifest.dart';
 import 'sealing.dart' as sealing;
 import 'signing.dart';
 
@@ -25,6 +26,7 @@ const List<String> implementedCategories = [
   'types',
   'time',
   'keys',
+  'manifest',
 ];
 
 /// The version of the vector file format the adapter reads.
@@ -108,6 +110,8 @@ final Map<String, _Operation> _operations = {
   'padded_length': _paddedLength,
   'seal': _seal,
   'open': _open,
+  'check_manifest': _checkManifest,
+  'fit': _fit,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -498,4 +502,28 @@ Future<Map<String, Object?>> _open(Map<String, Object?> input) async {
       ]),
     ),
   });
+}
+
+Future<Map<String, Object?>> _checkManifest(Map<String, Object?> input) async {
+  final format = input['envelope_format'];
+  if (format is! int) throw const _BadRequest('envelope_format is no integer');
+  return _accept({
+    'manifest': _json(await checkManifest(_bytes(input['body']), format)),
+  });
+}
+
+Future<Map<String, Object?>> _fit(Map<String, Object?> input) async {
+  final languages = input['languages'];
+  if (languages is! List<Object?> || languages.any((l) => l is! String)) {
+    throw const _BadRequest('languages is not a list of strings');
+  }
+  final manifest =
+      decodeBody(Kind.manifest, _bytes(input['manifest']))!
+          as Map<String, Object?>;
+  final result = fit(
+    manifest,
+    _string(input, 'schema'),
+    languages.cast<String>(),
+  );
+  return _accept({'fits': result.fits, 'purpose': result.purpose});
 }
