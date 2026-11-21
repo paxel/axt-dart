@@ -43,3 +43,19 @@ rule = "MaintainedID"
 ignoreUntil = 2027-02-19
 reason = """The repository was created on 2026-11-21; Scorecard flags every repository younger \
 than 90 days, whatever its activity. The finding ends by itself on 2027-02-19."""
+
+[[IgnoredAlerts]]
+tool = "Scorecard"
+rule = "FuzzingID"
+ignoreUntil = 2027-05-21
+reason = """Scorecard detects fuzzing only through OSS-Fuzz, ClusterFuzzLite and the fuzzers of \
+other languages; it knows no Dart fuzzer. .github/workflows/fuzz.yml fuzzes the library weekly \
+with the Dart stack of paxel/gates."""
+
+[[IgnoredAlerts]]
+tool = "Scorecard"
+rule = "SASTID"
+ignoreUntil = 2027-02-19
+reason = """Scorecard counts only pull requests merged with SAST; the first commits of the \
+repository were pushed directly. CodeQL and SonarQube Cloud run on every push and pull \
+request, and the finding clears once changes arrive through pull requests."""
