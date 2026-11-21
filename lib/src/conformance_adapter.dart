@@ -16,6 +16,7 @@ import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
 import 'manifest.dart';
+import 'records.dart';
 import 'sealing.dart' as sealing;
 import 'signing.dart';
 
@@ -27,6 +28,7 @@ const List<String> implementedCategories = [
   'time',
   'keys',
   'manifest',
+  'records',
 ];
 
 /// The version of the vector file format the adapter reads.
@@ -112,6 +114,7 @@ final Map<String, _Operation> _operations = {
   'open': _open,
   'check_manifest': _checkManifest,
   'fit': _fit,
+  'apply': _apply,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -526,4 +529,94 @@ Future<Map<String, Object?>> _fit(Map<String, Object?> input) async {
     languages.cast<String>(),
   );
   return _accept({'fits': result.fits, 'purpose': result.purpose});
+}
+
+RecordPolicy _policy(Object? value) {
+  if (value is! Map<String, Object?>) {
+    throw const _BadRequest('policy is no object');
+  }
+  return RecordPolicy(
+    localChanges: switch (value['local_changes']) {
+      'per_field' => LocalChanges.perField,
+      'whole_record_keep' => LocalChanges.wholeRecordKeep,
+      'whole_record_take' => LocalChanges.wholeRecordTake,
+      final other => throw _BadRequest('no policy $other'),
+    },
+    deleteWithLocalChanges: switch (value['delete_with_local_changes']) {
+      'delete' => DeleteWithLocalChanges.delete,
+      'keep' => DeleteWithLocalChanges.keep,
+      final other => throw _BadRequest('no policy $other'),
+    },
+  );
+}
+
+/// One receiver and the records of one sender, starting empty (records.md,
+/// sections 5 to 7); its user's changes are kept as the current values.
+Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
+  final policy = _policy(input['policy']);
+  final events = input['events'];
+  if (events is! List<Object?>) throw const _BadRequest('events is no list');
+  final held = <String, HeldRecord>{};
+  final current = <String, Map<String, Object?>?>{};
+  final steps = <Object?>[];
+  for (final event in events) {
+    if (event is! Map<String, Object?>) {
+      throw const _BadRequest('an event is no object');
+    }
+    final message = event['message'];
+    final change = event['local_change'];
+    final delete = event['local_delete'];
+    if (change is Map<String, Object?>) {
+      final key = recordKey(_string(change, 'id'));
+      current[key] = {
+        ...?current[key],
+        _string(change, 'field'): change['value'],
+      };
+      steps.add(<String, Object?>{});
+    } else if (delete is Map<String, Object?>) {
+      final key = recordKey(_string(delete, 'id'));
+      final record = held[key]!;
+      held[key] = HeldRecord(
+        version: record.version,
+        state: HeldState.deletedByUser,
+        type: record.type,
+      );
+      current[key] = null;
+      steps.add(<String, Object?>{});
+    } else if (message is Map<String, Object?>) {
+      try {
+        final key = recordKey(_string(message, 'id'));
+        final version = message['version'];
+        if (version is! int) throw const _BadRequest('version is no integer');
+        final applied = applyRecordMessage(
+          held: held[key],
+          current: current[key],
+          kind: switch (message['kind']) {
+            'DATA' => RecordKind.data,
+            'DELETE' => RecordKind.delete,
+            'WITHDRAW' => RecordKind.withdraw,
+            final other => throw _BadRequest('no record kind $other'),
+          },
+          version: version,
+          policy: policy,
+          type: message['type'] as String?,
+          value: message['value'] as Map<String, Object?>?,
+        );
+        held[key] = applied.held;
+        current[key] = applied.value;
+        steps.add({
+          'outcome': applied.outcome.code,
+          'receiver_version': applied.held.version,
+          'kept_fields': applied.keptFields,
+          'state': applied.held.state.code,
+          'value': applied.value,
+        });
+      } on AxtException catch (e) {
+        steps.add({'error': e.code.code});
+      }
+    } else {
+      throw const _BadRequest('an event of no known form');
+    }
+  }
+  return {'steps': steps};
 }

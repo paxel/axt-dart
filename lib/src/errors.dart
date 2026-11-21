@@ -18,7 +18,10 @@ enum ErrorCode {
   paddingInvalid('PADDING_INVALID'),
   deviceRejected('DEVICE_REJECTED'),
   joinInvalid('JOIN_INVALID'),
-  manifestInvalid('MANIFEST_INVALID');
+  manifestInvalid('MANIFEST_INVALID'),
+  recordIdInvalid('RECORD_ID_INVALID'),
+  versionInvalid('VERSION_INVALID'),
+  typeChanged('TYPE_CHANGED');
 
   const ErrorCode(this.code);
 
