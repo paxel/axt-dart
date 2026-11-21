@@ -31,4 +31,4 @@ Native only: the Dart VM and AOT on Android, iOS and desktop. Flutter web is not
 ## Licence
 
 Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the
-[MIT License](LICENSE-MIT), at your option.
+[MIT License](LICENSE-MIT), at your option (see [LICENSE](LICENSE)).
