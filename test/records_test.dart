@@ -245,6 +245,14 @@ void main() {
         'policy': policy,
         'events': [
           {
+            'local_delete': {'id': id},
+          },
+        ],
+      },
+      {
+        'policy': policy,
+        'events': [
+          {
             'message': {'kind': 'X', 'id': id, 'version': 1},
           },
         ],

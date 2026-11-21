@@ -24,11 +24,19 @@ final class RecordPolicy {
   const RecordPolicy({
     this.localChanges = LocalChanges.perField,
     this.deleteWithLocalChanges = DeleteWithLocalChanges.keep,
-  });
+    DeleteWithLocalChanges? withdrawWithLocalChanges,
+  }) : _withdraw = withdrawWithLocalChanges;
 
   final LocalChanges localChanges;
 
   final DeleteWithLocalChanges deleteWithLocalChanges;
+
+  final DeleteWithLocalChanges? _withdraw;
+
+  /// What the receiver does when a withdrawal meets its user's changes
+  /// (shares.md, section 4.3); as for a deletion unless chosen otherwise.
+  DeleteWithLocalChanges get withdrawWithLocalChanges =>
+      _withdraw ?? deleteWithLocalChanges;
 }
 
 /// The kind of a record message.
@@ -72,6 +80,7 @@ final class HeldRecord {
     required this.state,
     this.type,
     this.taken,
+    this.keptAgainst,
   });
 
   /// The receiver's version: the highest version seen in a record message.
@@ -84,6 +93,10 @@ final class HeldRecord {
 
   /// The value the receiver last took from the sender, for a record there.
   final Map<String, Object?>? taken;
+
+  /// The kind of the message of the receiver's version that the receiver
+  /// kept the record against, `DELETE` or `WITHDRAW`; null otherwise.
+  final RecordKind? keptAgainst;
 }
 
 /// The result of one record message.
@@ -209,8 +222,10 @@ Applied applyRecordMessage({
       ? changedFields(held!.taken!, current)
       : const <String>[];
   if (kind != RecordKind.data) {
-    if (changes.isNotEmpty &&
-        policy.deleteWithLocalChanges == DeleteWithLocalChanges.keep) {
+    final keep = kind == RecordKind.withdraw
+        ? policy.withdrawWithLocalChanges
+        : policy.deleteWithLocalChanges;
+    if (changes.isNotEmpty && keep == DeleteWithLocalChanges.keep) {
       return Applied(
         outcome: Outcome.kept,
         held: HeldRecord(
@@ -218,6 +233,7 @@ Applied applyRecordMessage({
           state: HeldState.there,
           type: held!.type,
           taken: held.taken,
+          keptAgainst: kind,
         ),
         value: current,
       );
@@ -285,4 +301,22 @@ Applied applyRecordMessage({
         keptFields: kept,
       );
   }
+}
+
+/// The receiver's user takes after all the `DELETE` or the `WITHDRAW` of the
+/// receiver's version that it kept the record against (protocol.md, section
+/// 7.3); null when the record is kept against neither.
+Applied? takeKeptRemoval(HeldRecord held) {
+  final against = held.keptAgainst;
+  if (against == null) return null;
+  final withdraw = against == RecordKind.withdraw;
+  return Applied(
+    outcome: withdraw ? Outcome.withdrawn : Outcome.applied,
+    held: HeldRecord(
+      version: held.version,
+      state: withdraw ? HeldState.withdrawn : HeldState.tombstone,
+      type: held.type,
+    ),
+    value: null,
+  );
 }

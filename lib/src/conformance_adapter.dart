@@ -19,6 +19,7 @@ import 'live_session.dart';
 import 'manifest.dart';
 import 'records.dart';
 import 'sealing.dart' as sealing;
+import 'shares.dart';
 import 'signing.dart';
 
 /// The categories of `spec/conformance.md`, section 2.1, that the adapter
@@ -33,6 +34,10 @@ const List<String> implementedCategories = [
   'file',
   'protocol',
 ];
+
+/// Categories under construction that a local run asks for too, with
+/// `tool/adapter.dart --also <category>`; never set in CI.
+final List<String> extraCategories = [];
 
 /// The version of the vector file format the adapter reads.
 const int vectorFormat = 1;
@@ -64,7 +69,7 @@ Future<Map<String, Object?>> answer(Object? request) async {
       'id': id,
       'output': {
         'name': 'axt_protocol (AXT $axtVersion)',
-        'categories': implementedCategories,
+        'categories': [...implementedCategories, ...extraCategories],
       },
     };
   }
@@ -123,6 +128,13 @@ final Map<String, _Operation> _operations = {
   'contact_key': _contactKey,
   'resend_after_removal': _resendAfterRemoval,
   'session': _session,
+  'receive': _apply,
+  'take_version': _takeVersion,
+  'owed': _owed,
+  'acked': _acked,
+  'pass_withdrawal': _passWithdrawal,
+  'join_receivers': _joinReceivers,
+  'offer_types': _offerTypes,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -539,6 +551,12 @@ Future<Map<String, Object?>> _fit(Map<String, Object?> input) async {
   return _accept({'fits': result.fits, 'purpose': result.purpose});
 }
 
+DeleteWithLocalChanges _removalPolicy(Object? value) => switch (value) {
+  'delete' => DeleteWithLocalChanges.delete,
+  'keep' => DeleteWithLocalChanges.keep,
+  final other => throw _BadRequest('no policy $other'),
+};
+
 RecordPolicy _policy(Object? value) {
   if (value is! Map<String, Object?>) {
     throw const _BadRequest('policy is no object');
@@ -550,13 +568,20 @@ RecordPolicy _policy(Object? value) {
       'whole_record_take' => LocalChanges.wholeRecordTake,
       final other => throw _BadRequest('no policy $other'),
     },
-    deleteWithLocalChanges: switch (value['delete_with_local_changes']) {
-      'delete' => DeleteWithLocalChanges.delete,
-      'keep' => DeleteWithLocalChanges.keep,
-      final other => throw _BadRequest('no policy $other'),
-    },
+    deleteWithLocalChanges: _removalPolicy(value['delete_with_local_changes']),
+    withdrawWithLocalChanges: value['withdraw_with_local_changes'] == null
+        ? null
+        : _removalPolicy(value['withdraw_with_local_changes']),
   );
 }
+
+Map<String, Object?> _step(Applied applied) => {
+  'outcome': applied.outcome.code,
+  'receiver_version': applied.held.version,
+  'kept_fields': applied.keptFields,
+  'state': applied.held.state.code,
+  'value': applied.value,
+};
 
 /// One receiver and the records of one sender, starting empty (records.md,
 /// sections 5 to 7); its user's changes are kept as the current values.
@@ -574,7 +599,16 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
     final message = event['message'];
     final change = event['local_change'];
     final delete = event['local_delete'];
-    if (change is Map<String, Object?>) {
+    final take = event['local_take'];
+    if (take is Map<String, Object?>) {
+      final key = recordKey(_string(take, 'id'));
+      final kept = held[key];
+      final applied = kept == null ? null : takeKeptRemoval(kept);
+      if (applied == null) throw const _BadRequest('nothing kept to take');
+      held[key] = applied.held;
+      current[key] = null;
+      steps.add(_step(applied));
+    } else if (change is Map<String, Object?>) {
       final key = recordKey(_string(change, 'id'));
       current[key] = {
         ...?current[key],
@@ -583,7 +617,8 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
       steps.add(<String, Object?>{});
     } else if (delete is Map<String, Object?>) {
       final key = recordKey(_string(delete, 'id'));
-      final record = held[key]!;
+      final record = held[key];
+      if (record == null) throw const _BadRequest('no record to delete');
       held[key] = HeldRecord(
         version: record.version,
         state: HeldState.deletedByUser,
@@ -612,13 +647,7 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
         );
         held[key] = applied.held;
         current[key] = applied.value;
-        steps.add({
-          'outcome': applied.outcome.code,
-          'receiver_version': applied.held.version,
-          'kept_fields': applied.keptFields,
-          'state': applied.held.state.code,
-          'value': applied.value,
-        });
+        steps.add(_step(applied));
       } on AxtException catch (e) {
         steps.add({'error': e.code.code});
       }
@@ -847,4 +876,133 @@ Future<Map<String, Object?>> _session(Map<String, Object?> input) async {
     }
   }
   return {'steps': answers};
+}
+
+int? _version(Object? value) {
+  if (value == null) return null;
+  if (value is! String) throw const _BadRequest('a version is no decimal text');
+  return int.parse(value);
+}
+
+String? _text(int? version) => version?.toString();
+
+const Map<Owes, String> _owesCodes = {
+  Owes.data: 'DATA',
+  Owes.delete: 'DELETE',
+  Owes.withdraw: 'WITHDRAW',
+  Owes.nothing: 'nothing',
+  Owes.newWithdrawal: 'new_withdrawal',
+};
+
+const Map<Then, String> _thenCodes = {
+  Then.nothing: 'nothing',
+  Then.newWithdrawal: 'new_withdrawal',
+  Then.sendState: 'send_state',
+  Then.wait: 'wait',
+};
+
+RecordKind _recordKind(Object? value) => switch (value) {
+  'DATA' => RecordKind.data,
+  'DELETE' => RecordKind.delete,
+  'WITHDRAW' => RecordKind.withdraw,
+  final other => throw _BadRequest('no record kind $other'),
+};
+
+Outcome? _outcome(Object? value) =>
+    value == null ? null : Outcome.values.firstWhere((o) => o.code == value);
+
+Future<Map<String, Object?>> _takeVersion(Map<String, Object?> input) async {
+  final result = takeVersion(
+    shareAgain: input['occasion'] == 'share_again',
+    highestGiven: _version(input['highest_given'])!,
+    stateStamp: _version(input['state_stamp'])!,
+  );
+  return _accept({
+    'version': _text(result.version),
+    'state_stamp': _text(result.stateStamp),
+  });
+}
+
+Future<Map<String, Object?>> _owed(Map<String, Object?> input) async {
+  final last = input['last'];
+  final result = owed(
+    shared: input['shared'] == true,
+    deleted: input['deleted'] == true,
+    version: _version(input['version'])!,
+    withdrawal: _version(input['withdrawal']),
+    last: last is Map<String, Object?>
+        ? (kind: _recordKind(last['kind']), version: _version(last['version'])!)
+        : null,
+  );
+  return _accept({
+    'owes': _owesCodes[result.owes],
+    'version': _text(result.version),
+  });
+}
+
+Future<Map<String, Object?>> _acked(Map<String, Object?> input) async {
+  final result = acked(
+    sent: _recordKind(input['sent']),
+    held: _outcome(input['held']),
+    outcome: _outcome(input['outcome'])!,
+    receiverVersion: _version(input['receiver_version'])!,
+    shared: input['shared'] == true,
+    withdrawal: _version(input['withdrawal']),
+    stateStamp: _version(input['state_stamp'])!,
+    siblingStamp: _version(input['sibling_stamp']),
+    sibling: input['sibling'] == true,
+  );
+  return _accept({
+    'outcome': result.outcome.code,
+    'then': _thenCodes[result.then],
+    'to_pass': _text(result.toPass),
+  });
+}
+
+Future<Map<String, Object?>> _passWithdrawal(Map<String, Object?> input) async {
+  final result = passWithdrawal(
+    shared: input['shared'] == true,
+    withdrawal: _version(input['withdrawal']),
+    toPass: _version(input['to_pass'])!,
+    stateStamp: _version(input['state_stamp'])!,
+  );
+  return _accept({
+    'then': _thenCodes[result.then],
+    'to_pass': _text(result.toPass),
+  });
+}
+
+Future<Map<String, Object?>> _joinReceivers(Map<String, Object?> input) async {
+  final receivers = input['receivers'];
+  if (receivers is! List<Object?>) {
+    throw const _BadRequest('receivers is no list');
+  }
+  final result = joinReceivers([
+    for (final r in receivers.cast<Map<String, Object?>>())
+      (shared: r['shared'] == true, withdrawal: _version(r['withdrawal'])),
+  ]);
+  return _accept({
+    'shared': result.shared,
+    'withdrawal': _text(result.withdrawal),
+    'new_state_stamp': result.newStateStamp,
+  });
+}
+
+Future<Map<String, Object?>> _offerTypes(Map<String, Object?> input) async {
+  final records = input['records'];
+  if (records is! List<Object?>) throw const _BadRequest('records is no list');
+  final owesByCode = {for (final e in _owesCodes.entries) e.value: e.key};
+  return _accept({
+    'types': [
+      for (final t in offerTypes([
+        for (final r in records.cast<Map<String, Object?>>())
+          (
+            type: _string(r, 'type'),
+            owes: owesByCode[r['owes']] ?? Owes.nothing,
+            delivered: r['delivered'] == true,
+          ),
+      ]))
+        {'type': t.type, 'count': t.count},
+    ],
+  });
 }
