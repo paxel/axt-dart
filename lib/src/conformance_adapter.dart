@@ -10,11 +10,11 @@ import 'package:crypto/crypto.dart';
 
 import '../axt_protocol.dart';
 import 'envelope.dart';
-import 'errors.dart';
 import 'record_decoder.dart';
 import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
+import 'file_reader.dart';
 import 'manifest.dart';
 import 'records.dart';
 import 'sealing.dart' as sealing;
@@ -29,6 +29,7 @@ const List<String> implementedCategories = [
   'keys',
   'manifest',
   'records',
+  'file',
 ];
 
 /// The version of the vector file format the adapter reads.
@@ -115,6 +116,7 @@ final Map<String, _Operation> _operations = {
   'check_manifest': _checkManifest,
   'fit': _fit,
   'apply': _apply,
+  'read_file': _readFile,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -619,4 +621,92 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
     }
   }
   return {'steps': steps};
+}
+
+Map<String, String> _schemaTexts(Object? value) {
+  if (value is! Map<String, Object?> || value.values.any((v) => v is! String)) {
+    throw const _BadRequest('readers is not an object of schema texts');
+  }
+  return value.cast<String, String>();
+}
+
+/// Reads a file as a reader whose user accepted its sender, that knows the
+/// sender by the key in `axt.sender` alone and holds no record of it yet.
+Future<Map<String, Object?>> _readFile(Map<String, Object?> input) async {
+  final readerInput = _object(input, 'reader');
+  final keys = readerInput['keys'];
+  final ownKeys = keys is Map<String, Object?> ? keys : null;
+  final reader = FileReader(
+    manifest:
+        decodeBody(Kind.manifest, _bytes(readerInput['manifest']))!
+            as Map<String, Object?>,
+    readers: _schemaTexts(readerInput['readers'] ?? <String, Object?>{}),
+    current: ownKeys == null ? const {} : _keys(ownKeys['current']),
+    removed: ownKeys == null ? const {} : _keys(ownKeys['removed']),
+  );
+  final CheckedFile file;
+  try {
+    file = await checkFile(_bytes(input['file']));
+  } on AxtException catch (e) {
+    return _reject(e.code.code);
+  }
+  final sender = _hex(file.sender);
+  final receiver = DeviceSetReceiver(
+    senders: [
+      KnownSender('sender', current: {sender}),
+    ],
+  );
+  final outcome = await receiver.receiveChain(file.chain);
+  final chain = [
+    for (var i = 0; i < file.chain.length; i++)
+      () {
+        final change = DeviceChange.decode(file.chain[i]);
+        return {
+          'kind': change.kind.symbol,
+          'signer': _hex(change.signer),
+          'device': _hex(change.device),
+          'result': outcome.results[i].code,
+        };
+      }(),
+  ];
+  final removed = receiver.stateOf(sender) == KeyState.removed;
+  final manifestBody = file.manifest;
+  String manifest;
+  if (manifestBody == null) {
+    manifest = 'none';
+  } else {
+    try {
+      await checkManifest(manifestBody, 1);
+      manifest = 'used';
+    } on AxtException {
+      manifest = 'invalid';
+    }
+  }
+  final List<Map<String, Object?>> records;
+  if (removed) {
+    records = [
+      for (final message in file.records)
+        {
+          'id': message.envelope.record!.id,
+          'version': message.envelope.record!.version,
+          'result': 'SENDER_REMOVED',
+        },
+    ];
+  } else {
+    records = [
+      for (final result in await readFileRecords(
+        file,
+        reader,
+        held: {},
+        current: {},
+      ))
+        {'id': result.id, 'version': result.version, 'result': result.result},
+    ];
+  }
+  return _accept({
+    'sender': sender,
+    'chain': chain,
+    'manifest': manifest,
+    'records': records,
+  });
 }

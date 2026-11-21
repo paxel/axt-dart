@@ -124,6 +124,11 @@ Object? withoutLogicalTypes(Object? schemaJson) => switch (schemaJson) {
   _ => schemaJson,
 };
 
+/// The JSON text of the AXT schema of [fullName], as the release publishes it.
+String axtSchemaText(String fullName) =>
+    axtSchemaTexts[fullName] ??
+    (throw ArgumentError.value(fullName, 'fullName'));
+
 /// The parsed AXT schema of [fullName], such as `axt.Envelope`.
 Schema axtSchema(String fullName) =>
     _schemas[fullName] ?? (throw ArgumentError.value(fullName, 'fullName'));

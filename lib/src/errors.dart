@@ -21,7 +21,8 @@ enum ErrorCode {
   manifestInvalid('MANIFEST_INVALID'),
   recordIdInvalid('RECORD_ID_INVALID'),
   versionInvalid('VERSION_INVALID'),
-  typeChanged('TYPE_CHANGED');
+  typeChanged('TYPE_CHANGED'),
+  fileRejected('FILE_REJECTED');
 
   const ErrorCode(this.code);
 
