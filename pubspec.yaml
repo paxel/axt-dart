@@ -1,4 +1,5 @@
 name: axt_protocol
+version: 0.1.0
 description: >-
   The Dart library of AXT (Avro eXchange Transfer), the open standard for small
   apps to exchange typed records. Conforms to AXT 0.1.0.

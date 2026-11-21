@@ -1,0 +1,17 @@
+# What pub.dev gets: the library, its README, CHANGELOG, licences and security policy.
+# The repository's own tooling, docs, tests and gates stay in the repository.
+.github/
+.fvmrc
+AGENTS.md
+CLAUDE.md
+CONTEXT.md
+docs/
+fuzz/
+test/
+tool/
+build/
+coverage/
+code-scanning-ignores.toml
+coverage-floors.toml
+osv-scanner.toml
+sonar-project.properties
