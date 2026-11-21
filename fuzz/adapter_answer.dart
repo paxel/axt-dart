@@ -68,14 +68,14 @@ String _input(Random random) {
 }
 
 /// The problem with the answer to [line], or null when it keeps the protocol.
-String? _check(String line) {
+Future<String?> _check(String line) async {
   Object? request;
   try {
     request = jsonDecode(line);
   } on FormatException {
     return null;
   }
-  final reply = answer(request);
+  final reply = await answer(request);
   jsonEncode(reply);
   final id = request is Map<String, Object?> ? request['id'] : null;
   if (reply['id'] != id) return 'the answer has id ${reply['id']}, not $id';
@@ -93,7 +93,7 @@ void _crash(String line, Object problem) {
   exitCode = 1;
 }
 
-void main(List<String> arguments) {
+Future<void> main(List<String> arguments) async {
   final seconds = arguments.isEmpty ? 10 : int.parse(arguments.first);
   final random = Random.secure();
   final end = DateTime.now().add(Duration(seconds: seconds));
@@ -102,7 +102,7 @@ void main(List<String> arguments) {
     final line = _input(random);
     runs++;
     try {
-      final problem = _check(line);
+      final problem = await _check(line);
       if (problem != null) return _crash(line, problem);
     } on Object catch (e) {
       return _crash(line, e);

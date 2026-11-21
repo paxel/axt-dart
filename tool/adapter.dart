@@ -10,12 +10,15 @@ import 'dart:io';
 
 import 'package:axt_protocol/src/conformance_adapter.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> arguments) async {
+  for (var i = 0; i + 1 < arguments.length; i++) {
+    if (arguments[i] == '--also') extraCategories.add(arguments[i + 1]);
+  }
   final lines = stdin.transform(utf8.decoder).transform(const LineSplitter());
   await for (final line in lines) {
     Map<String, Object?> reply;
     try {
-      reply = answer(jsonDecode(line));
+      reply = await answer(jsonDecode(line));
     } on FormatException catch (e) {
       reply = {'id': null, 'failure': 'not JSON: ${e.message}'};
     }
