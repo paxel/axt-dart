@@ -1,0 +1,37 @@
+name: Conformance
+
+# The conformance suite of the pinned AXT release against the library's adapter
+# (tool/conformance.sh): the archive is checked by its SHA-256 and its attestation first.
+on:
+  push:
+    branches: [summer]
+  pull_request:
+
+concurrency:
+  group: conformance-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    name: AXT conformance suite
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # .fvmrc is the only source of the Flutter version, and with it of Dart.
+      - name: Flutter from .fvmrc
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open(".fvmrc"))["flutter"])')
+          git clone --quiet --depth 1 --branch "$version" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - name: Dependencies
+        run: dart pub get --enforce-lockfile
+      - name: Suite
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: tool/conformance.sh
