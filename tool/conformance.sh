@@ -17,8 +17,8 @@ rm -rf "$work"
 mkdir -p "$work"
 cd "$work"
 
-curl -fsSL -o "$ARCHIVE" "$BASE/$ARCHIVE"
-curl -fsSL -o "$BUNDLE" "$BASE/$BUNDLE"
+curl --proto =https --proto-redir =https -fsSL -o "$ARCHIVE" "$BASE/$ARCHIVE"
+curl --proto =https --proto-redir =https -fsSL -o "$BUNDLE" "$BASE/$BUNDLE"
 echo "$AXT_SHA256  $ARCHIVE" | sha256sum --check --strict
 # The release attests through the reusable provenance workflow of paxel/gates, so that
 # workflow is the signer; the source is paxel/axt at the release tag.
@@ -28,7 +28,7 @@ gh attestation verify "$ARCHIVE" --bundle "$BUNDLE" --repo paxel/axt \
 
 mkdir suite
 tar -xzf "$ARCHIVE" -C suite --strip-components=1
-(cd suite && uv sync --frozen --no-dev)
+(cd suite && uv sync --frozen --no-dev --no-build)
 
 dart compile exe "$root/tool/adapter.dart" -o "$work/adapter"
 
