@@ -15,6 +15,7 @@ import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
 import 'file_reader.dart';
+import 'live_session.dart';
 import 'manifest.dart';
 import 'records.dart';
 import 'sealing.dart' as sealing;
@@ -30,6 +31,7 @@ const List<String> implementedCategories = [
   'manifest',
   'records',
   'file',
+  'protocol',
 ];
 
 /// The version of the vector file format the adapter reads.
@@ -117,6 +119,10 @@ final Map<String, _Operation> _operations = {
   'fit': _fit,
   'apply': _apply,
   'read_file': _readFile,
+  'choose_format': _chooseFormat,
+  'contact_key': _contactKey,
+  'resend_after_removal': _resendAfterRemoval,
+  'session': _session,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -709,4 +715,136 @@ Future<Map<String, Object?>> _readFile(Map<String, Object?> input) async {
     'manifest': manifest,
     'records': records,
   });
+}
+
+List<int> _ints(Object? value) {
+  if (value is! List<Object?> || value.any((v) => v is! int)) {
+    throw const _BadRequest('not a list of integers');
+  }
+  return value.cast<int>();
+}
+
+Future<Map<String, Object?>> _chooseFormat(Map<String, Object?> input) async {
+  final theirs = _ints(input['theirs']).toSet();
+  final common = [
+    for (final f in _ints(input['own']))
+      if (theirs.contains(f)) f,
+  ];
+  return _accept({
+    'format': common.isEmpty ? null : common.reduce((a, b) => a > b ? a : b),
+  });
+}
+
+/// The key to which a sender offers (protocol.md, section 9.1).
+Future<Map<String, Object?>> _contactKey(Map<String, Object?> input) async {
+  final current = _keys(input['current']);
+  final manifests = _keys(input['manifests']);
+  final got = input['got'];
+  if (got is! List<Object?>) throw const _BadRequest('got is no list');
+  String? last;
+  for (final message in got.cast<Map<String, Object?>>()) {
+    final key = _string(message, 'key');
+    final kind = message['kind'];
+    if (!current.contains(key) ||
+        !manifests.contains(key) ||
+        kind == 'DEVICE_ADD' ||
+        kind == 'DEVICE_REMOVE' ||
+        kind == 'MANIFEST') {
+      continue;
+    }
+    last = key;
+  }
+  final keys = last != null
+      ? [last]
+      : ([
+          for (final key in current)
+            if (manifests.contains(key)) key,
+        ]..sort());
+  return _accept({'keys': keys});
+}
+
+Future<Map<String, Object?>> _resendAfterRemoval(
+  Map<String, Object?> input,
+) async {
+  final removed = _keys(input['removed']);
+  final records = input['records'];
+  if (records is! List<Object?>) throw const _BadRequest('records is no list');
+  return _accept({
+    'ids': [
+      for (final record in records.cast<Map<String, Object?>>())
+        if (((record['outcomes'] ?? <String, Object?>{})
+                as Map<String, Object?>)
+            .keys
+            .every(removed.contains))
+          record['id'],
+    ],
+  });
+}
+
+Future<Map<String, Object?>> _session(Map<String, Object?> input) async {
+  final appInput = _object(input, 'app');
+  final takes = appInput['user_takes'];
+  if (takes is! List<Object?>) throw const _BadRequest('user_takes is no list');
+  final app = await LiveApp.open(
+    seed: _bytes(appInput['seed']),
+    manifestBody: _bytes(appInput['manifest']),
+    formats: _ints(appInput['formats']),
+    readers: _schemaTexts(appInput['readers'] ?? <String, Object?>{}),
+    userTakes: takes.cast<String>().toSet(),
+    peer: _bytes(appInput['peer']),
+  );
+  final steps = input['steps'];
+  if (steps is! List<Object?>) throw const _BadRequest('steps is no list');
+  final answers = <Object?>[];
+  for (final step in steps.cast<Map<String, Object?>>()) {
+    if (step.containsKey('receive')) {
+      final received = await app.receive(_bytes(step['receive']));
+      answers.add({
+        'outcome': received.outcome?.code,
+        'close': received.close,
+        'replies': [for (final r in received.replies) _hex(r)],
+      });
+    } else if (step.containsKey('flush_acks')) {
+      final (_, replies) = await app.flushAcks();
+      answers.add({
+        'replies': [for (final r in replies) _hex(r)],
+      });
+    } else if (step.containsKey('offer')) {
+      final offer = _object(step, 'offer');
+      final types = offer['types'];
+      if (types is! List<Object?>) throw const _BadRequest('types is no list');
+      final message = await app.offer(_string(offer, 'offer_id'), [
+        for (final t in types.cast<Map<String, Object?>>())
+          (schema: _string(t, 'schema'), count: t['count']! as int),
+      ]);
+      answers.add({'message': _hex(message)});
+    } else if (step.containsKey('close')) {
+      app.closeConnection();
+      answers.add(<String, Object?>{});
+    } else if (step.containsKey('query')) {
+      final query = _object(step, 'query');
+      if (query.containsKey('accepted')) {
+        answers.add({'accepted': app.accepted(_string(query, 'accepted'))});
+      } else if (query.containsKey('outcome')) {
+        final of = _object(query, 'outcome');
+        answers.add({
+          'outcome': app
+              .outcomeOf(_string(of, 'id'), of['version']! as int)
+              ?.code,
+        });
+      } else if (query.containsKey('record')) {
+        final held = app.record(_string(query, 'record'));
+        answers.add({
+          'record': held == null
+              ? null
+              : {'version': held.version, 'state': held.state.code},
+        });
+      } else {
+        answers.add({'errors': app.errors});
+      }
+    } else {
+      throw const _BadRequest('a step of no known form');
+    }
+  }
+  return {'steps': answers};
 }

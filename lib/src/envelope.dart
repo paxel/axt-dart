@@ -129,6 +129,11 @@ String axtSchemaText(String fullName) =>
     axtSchemaTexts[fullName] ??
     (throw ArgumentError.value(fullName, 'fullName'));
 
+/// The AXT schema of [fullName] without its logical types, for writing
+/// bodies whose ids are kept as given.
+Schema axtRawSchema(String fullName) =>
+    _rawSchemas[fullName] ?? (throw ArgumentError.value(fullName, 'fullName'));
+
 /// The parsed AXT schema of [fullName], such as `axt.Envelope`.
 Schema axtSchema(String fullName) =>
     _schemas[fullName] ?? (throw ArgumentError.value(fullName, 'fullName'));

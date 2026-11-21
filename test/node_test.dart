@@ -5,7 +5,10 @@ import 'package:axt_protocol/axt_protocol.dart';
 import 'package:axt_protocol/src/node.dart' show nextStamp;
 import 'package:test/test.dart';
 
+import 'file_test.dart' show fileOf, memoBody, record;
 import 'key_fixtures.dart';
+
+import 'package:axt_protocol/src/envelope.dart' show Kind;
 
 /// A store in memory whose transactions roll back on an error.
 final class MemoryStore implements AxtStore {
@@ -350,5 +353,23 @@ void moreTests() {
       ]),
       throwsA(isA<AxtException>()),
     );
+  });
+
+  test('apply skips a record message whose id is no UUID', () async {
+    final reader = await AxtNode.open(
+      store: MemoryStore(),
+      signingSeed: b.seed,
+      manifest: manifest('R'),
+    );
+    final file = await fileOf(a, [
+      await record(a, Kind.data, 'nope', 1, memoBody('x')),
+    ]);
+    final result = await reader.apply(
+      await reader.inspect(file),
+      acceptSender: true,
+      onRecord: (_) async {},
+      currentValue: (_, _) async => null,
+    );
+    expect(result.records.single.result, 'RECORD_ID_INVALID');
   });
 }

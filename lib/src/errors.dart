@@ -22,7 +22,9 @@ enum ErrorCode {
   recordIdInvalid('RECORD_ID_INVALID'),
   versionInvalid('VERSION_INVALID'),
   typeChanged('TYPE_CHANGED'),
-  fileRejected('FILE_REJECTED');
+  fileRejected('FILE_REJECTED'),
+  offerInvalid('OFFER_INVALID'),
+  notAccepted('NOT_ACCEPTED');
 
   const ErrorCode(this.code);
 
