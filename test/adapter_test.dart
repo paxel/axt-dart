@@ -222,4 +222,50 @@ void main() {
       },
     );
   });
+
+  test('resolve_date_time and add_duration', () {
+    const floating = {
+      'year': 2026,
+      'month': 7,
+      'day': 1,
+      'hour': 10,
+      'minute': 0,
+      'second': 0,
+      'millisecond': 0,
+      'zone': null,
+      'offset_seconds': null,
+      'instant_ms': null,
+    };
+    expect(
+      output('resolve_date_time', {'date_time': floating, 'anchor': 'local'}),
+      {
+        'accept': {'date_time': floating},
+      },
+    );
+    expect(
+      output('resolve_date_time', {'date_time': floating, 'anchor': 'instant'}),
+      {
+        'accept': {'date_time': floating},
+      },
+    );
+    expect(
+      run('resolve_date_time', {'date_time': floating, 'anchor': 'x'}),
+      containsPair('failure', isA<String>()),
+    );
+    expect(
+      run('resolve_date_time', {'date_time': 1, 'anchor': 'local'}),
+      containsPair('failure', isA<String>()),
+    );
+    const none = {'months': 0, 'days': 0, 'millis': 0};
+    expect(output('add_duration', {'date_time': floating, 'duration': none}), {
+      'accept': {'date_time': floating},
+    });
+    expect(
+      run('add_duration', {
+        'date_time': {...floating, 'year': 9999, 'month': 12},
+        'duration': {...none, 'months': 1},
+      }),
+      containsPair('failure', isA<String>()),
+    );
+  });
 }

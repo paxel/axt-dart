@@ -12,10 +12,11 @@ import '../axt_protocol.dart';
 import 'envelope.dart';
 import 'errors.dart';
 import 'record_decoder.dart';
+import 'zone_rules.dart';
 
 /// The categories of `spec/conformance.md`, section 2.1, that the adapter
 /// answers. A category is listed only once all of its vectors pass.
-const List<String> implementedCategories = ['encoding', 'types'];
+const List<String> implementedCategories = ['encoding', 'types', 'time'];
 
 /// The version of the vector file format the adapter reads.
 const int vectorFormat = 1;
@@ -80,7 +81,12 @@ final Map<String, _Operation> _operations = {
   'decode_body': _decodeBody,
   'encode_message': _encodeMessage,
   'decode_record': _decodeRecord,
+  'resolve_date_time': _resolveDateTime,
+  'add_duration': _addDuration,
 };
+
+/// The zone rules of the vectors: the IANA time zone database 2026e.
+final ZoneRules _rules = TzdbZoneRules();
 
 Map<String, Object?> _accept(Object? value) => {'accept': value};
 
@@ -158,6 +164,39 @@ Map<String, Object?> _decodeRecord(Map<String, Object?> input) {
     _bytes(input['body']),
   );
   return _accept({'value': _json(value)});
+}
+
+Map<String, Object?> _object(Map<String, Object?> input, String name) {
+  final value = input[name];
+  if (value is! Map<String, Object?>) {
+    throw _BadRequest('$name is not an object');
+  }
+  return value;
+}
+
+Map<String, Object?> _resolveDateTime(Map<String, Object?> input) {
+  final anchor = switch (input['anchor']) {
+    'local' => Anchor.local,
+    'instant' => Anchor.instant,
+    final other => throw _BadRequest('no anchor $other'),
+  };
+  return _accept({
+    'date_time': resolveDateTime(_rules, _object(input, 'date_time'), anchor),
+  });
+}
+
+Map<String, Object?> _addDuration(Map<String, Object?> input) {
+  try {
+    return _accept({
+      'date_time': addDuration(
+        _rules,
+        _object(input, 'date_time'),
+        _object(input, 'duration'),
+      ),
+    });
+  } on RangeError catch (e) {
+    throw _BadRequest('the sum is out of range: ${e.message}');
+  }
 }
 
 String _string(Map<String, Object?> input, String name) {
