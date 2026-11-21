@@ -13,10 +13,19 @@ import 'envelope.dart';
 import 'errors.dart';
 import 'record_decoder.dart';
 import 'zone_rules.dart';
+import 'device_sets.dart';
+import 'ed25519.dart' as ed25519;
+import 'sealing.dart' as sealing;
+import 'signing.dart';
 
 /// The categories of `spec/conformance.md`, section 2.1, that the adapter
 /// answers. A category is listed only once all of its vectors pass.
-const List<String> implementedCategories = ['encoding', 'types', 'time'];
+const List<String> implementedCategories = [
+  'encoding',
+  'types',
+  'time',
+  'keys',
+];
 
 /// The version of the vector file format the adapter reads.
 const int vectorFormat = 1;
@@ -28,7 +37,7 @@ final class _BadRequest implements Exception {
 }
 
 /// Answers one request of the runner.
-Map<String, Object?> answer(Object? request) {
+Future<Map<String, Object?>> answer(Object? request) async {
   if (request is! Map<String, Object?>) {
     return {'id': null, 'failure': 'the request is not a JSON object'};
   }
@@ -57,7 +66,7 @@ Map<String, Object?> answer(Object? request) {
     return {'id': id, 'failure': 'the input is not a JSON object'};
   }
   try {
-    return {'id': id, 'output': operation(input)};
+    return {'id': id, 'output': await operation(input)};
   } on AxtException catch (e) {
     return {
       'id': id,
@@ -73,7 +82,9 @@ Map<String, Object?> answer(Object? request) {
   }
 }
 
-typedef _Operation = Map<String, Object?> Function(Map<String, Object?> input);
+typedef _Operation = Future<Map<String, Object?>> Function(
+  Map<String, Object?> input,
+);
 
 final Map<String, _Operation> _operations = {
   'fingerprint': _fingerprint,
@@ -83,6 +94,20 @@ final Map<String, _Operation> _operations = {
   'decode_record': _decodeRecord,
   'resolve_date_time': _resolveDateTime,
   'add_duration': _addDuration,
+  'public_key': _publicKey,
+  'sign': _sign,
+  'verify': _verify,
+  'check_signing_key': _checkSigningKey,
+  'check_encryption_key': _checkEncryptionKey,
+  'short_fingerprint': _shortFingerprint,
+  'verify_message': _verifyMessage,
+  'device_add': _deviceAdd,
+  'device_join': _deviceJoin,
+  'join_chain': _joinChain,
+  'device_sets': _deviceSets,
+  'padded_length': _paddedLength,
+  'seal': _seal,
+  'open': _open,
 };
 
 /// The zone rules of the vectors: the IANA time zone database 2026e.
@@ -90,7 +115,7 @@ final ZoneRules _rules = TzdbZoneRules();
 
 Map<String, Object?> _accept(Object? value) => {'accept': value};
 
-Map<String, Object?> _fingerprint(Map<String, Object?> input) {
+Future<Map<String, Object?>> _fingerprint(Map<String, Object?> input) async {
   final Schema schema;
   try {
     schema = Schema.parse(_string(input, 'schema'));
@@ -103,7 +128,7 @@ Map<String, Object?> _fingerprint(Map<String, Object?> input) {
   });
 }
 
-Map<String, Object?> _decodeMessage(Map<String, Object?> input) {
+Future<Map<String, Object?>> _decodeMessage(Map<String, Object?> input) async {
   final envelope = decodeMessage(_bytes(input['message']));
   final record = envelope.record;
   return _accept({
@@ -118,7 +143,7 @@ Map<String, Object?> _decodeMessage(Map<String, Object?> input) {
   });
 }
 
-Map<String, Object?> _decodeBody(Map<String, Object?> input) {
+Future<Map<String, Object?>> _decodeBody(Map<String, Object?> input) async {
   final kind = Kind.ofSymbol(_string(input, 'kind'));
   if (kind.bodySchema == null) {
     throw _BadRequest('decode_body takes no ${kind.symbol}');
@@ -126,7 +151,7 @@ Map<String, Object?> _decodeBody(Map<String, Object?> input) {
   return _accept({'value': _json(decodeBody(kind, _bytes(input['body'])))});
 }
 
-Map<String, Object?> _encodeMessage(Map<String, Object?> input) {
+Future<Map<String, Object?>> _encodeMessage(Map<String, Object?> input) async {
   final record = input['record'];
   final RecordRef? ref;
   if (record == null) {
@@ -153,7 +178,7 @@ Map<String, Object?> _encodeMessage(Map<String, Object?> input) {
   return _accept({'message': _hex(message)});
 }
 
-Map<String, Object?> _decodeRecord(Map<String, Object?> input) {
+Future<Map<String, Object?>> _decodeRecord(Map<String, Object?> input) async {
   final reader = input['reader_schema'];
   if (reader != null && reader is! String) {
     throw const _BadRequest('reader_schema is neither a string nor null');
@@ -174,7 +199,9 @@ Map<String, Object?> _object(Map<String, Object?> input, String name) {
   return value;
 }
 
-Map<String, Object?> _resolveDateTime(Map<String, Object?> input) {
+Future<Map<String, Object?>> _resolveDateTime(
+  Map<String, Object?> input,
+) async {
   final anchor = switch (input['anchor']) {
     'local' => Anchor.local,
     'instant' => Anchor.instant,
@@ -185,7 +212,7 @@ Map<String, Object?> _resolveDateTime(Map<String, Object?> input) {
   });
 }
 
-Map<String, Object?> _addDuration(Map<String, Object?> input) {
+Future<Map<String, Object?>> _addDuration(Map<String, Object?> input) async {
   try {
     return _accept({
       'date_time': addDuration(
@@ -256,3 +283,219 @@ Object? _json(Object? value) => switch (value) {
   List<Object?>() => [for (final item in value) _json(item)],
   _ => value,
 };
+
+Map<String, Object?> _reject(String code) => {
+  'reject': {'error': code},
+};
+
+Future<Map<String, Object?>> _publicKey(Map<String, Object?> input) async =>
+    _accept({
+      'public_key': _hex(await ed25519.publicKeyOf(_bytes(input['seed']))),
+    });
+
+Future<Map<String, Object?>> _sign(Map<String, Object?> input) async =>
+    _accept({
+      'signature': _hex(
+        await ed25519.sign(_bytes(input['seed']), _bytes(input['data'])),
+      ),
+    });
+
+Future<Map<String, Object?>> _verify(Map<String, Object?> input) async {
+  final verifies = await ed25519.verifyStrict(
+    _bytes(input['public_key']),
+    _bytes(input['data']),
+    _bytes(input['signature']),
+  );
+  return verifies ? _accept(<String, Object?>{}) : _reject('SIGNATURE_INVALID');
+}
+
+Future<Map<String, Object?>> _checkSigningKey(
+  Map<String, Object?> input,
+) async => ed25519.isPointOfOrderL(_bytes(input['public_key']))
+    ? _accept(<String, Object?>{})
+    : _reject('KEY_INVALID');
+
+Future<Map<String, Object?>> _checkEncryptionKey(
+  Map<String, Object?> input,
+) async =>
+    await sealing.isSmallOrderEncryptionKey(_bytes(input['encryption_key']))
+    ? _reject('ENCRYPTION_KEY_INVALID')
+    : _accept(<String, Object?>{});
+
+Future<Map<String, Object?>> _shortFingerprint(
+  Map<String, Object?> input,
+) async => _accept({
+  'short_fingerprint': shortFingerprint(_bytes(input['public_key'])),
+});
+
+Future<Map<String, Object?>> _verifyMessage(Map<String, Object?> input) async {
+  final message = _bytes(input['message']);
+  final envelope = decodeMessage(message);
+  return await verifyLiveMessage(message, envelope.sender)
+      ? _accept(<String, Object?>{})
+      : _reject('SIGNATURE_INVALID');
+}
+
+Future<Map<String, Object?>> _deviceAdd(Map<String, Object?> input) async {
+  final change = DeviceChange.decode(_bytes(input['message']));
+  if (!change.isAdd) throw const _BadRequest('not a DEVICE_ADD');
+  if (!await change.signatureVerifies()) return _reject('SIGNATURE_INVALID');
+  if (!await change.deviceVerifies()) return _reject('DEVICE_REJECTED');
+  return _accept({
+    'member': _hex(change.signer),
+    'device': _hex(change.device),
+  });
+}
+
+Set<String> _keys(Object? value) {
+  if (value is! List<Object?> || value.any((k) => k is! String)) {
+    throw const _BadRequest('keys are not a list of strings');
+  }
+  return {for (final key in value) key! as String};
+}
+
+Future<Map<String, Object?>> _deviceJoin(Map<String, Object?> input) async {
+  final message = _bytes(input['message']);
+  final member = _object(input, 'member');
+  final first = input['first'];
+  final JoinAction action;
+  try {
+    action = await answerDeviceJoin(
+      message,
+      member: _bytes(member['key']),
+      current: _keys(member['current']),
+      removed: _keys(member['removed']),
+      first: first == null ? null : _bytes(first),
+    );
+  } on AxtException catch (e) {
+    return _reject(e.code.code);
+  }
+  return _accept({
+    'device': _hex(decodeMessage(message).sender),
+    'action': switch (action) {
+      JoinAction.ask => 'ask',
+      JoinAction.sendChain => 'send_chain',
+      JoinAction.ignore => 'ignore',
+    },
+  });
+}
+
+List<Uint8List> _chain(Object? value) {
+  if (value is! List<Object?>) throw const _BadRequest('chain is not a list');
+  return [for (final message in value) _bytes(message)];
+}
+
+Future<Map<String, Object?>> _joinChain(Map<String, Object?> input) async {
+  final takes = await takesJoinChain(
+    _chain(input['chain']),
+    member: _bytes(input['member']),
+    device: _bytes(input['device']),
+  );
+  return takes ? _accept(<String, Object?>{}) : _reject('JOIN_INVALID');
+}
+
+KnownSender _knownSender(Object? value) {
+  if (value is! Map<String, Object?>) {
+    throw const _BadRequest('a sender is not an object');
+  }
+  final records = value['records'];
+  if (records is! List<Object?>) throw const _BadRequest('records is no list');
+  return KnownSender(
+    _string(value, 'name'),
+    current: _keys(value['current']),
+    removed: _keys(value['removed']),
+    records: {
+      for (final record in records.cast<Map<String, Object?>>())
+        _string(record, 'id'): KeptRecord(
+          record['version']! as int,
+          record['state'] == 'tombstone'
+              ? RecordState.tombstone
+              : RecordState.there,
+        ),
+    },
+  );
+}
+
+List<Map<String, Object?>> _senders(DeviceSetReceiver receiver) {
+  final senders = List.of(receiver.senders)
+    ..sort((a, b) => a.name.compareTo(b.name));
+  return [
+    for (final sender in senders)
+      {
+        'name': sender.name,
+        'current': sender.current.toList()..sort(),
+        'removed': sender.removed.toList()..sort(),
+        'records': [
+          for (final id in sender.records.keys.toList()..sort())
+            {
+              'id': id,
+              'version': sender.records[id]!.version,
+              'state': sender.records[id]!.state.name,
+            },
+        ],
+      },
+  ];
+}
+
+Future<Map<String, Object?>> _deviceSets(Map<String, Object?> input) async {
+  final senders = input['senders'];
+  final steps = input['steps'];
+  if (senders is! List<Object?> || steps is! List<Object?>) {
+    throw const _BadRequest('senders and steps must be lists');
+  }
+  final receiver = DeviceSetReceiver(
+    senders: [for (final sender in senders) _knownSender(sender)],
+    refused: _keys(input['refused']),
+  );
+  final results = <Map<String, Object?>>[];
+  for (final step in steps) {
+    if (step is! Map<String, Object?>) {
+      throw const _BadRequest('a step is no object');
+    }
+    final outcome = await receiver.receiveChain(_chain(step['chain']));
+    final key = step['key'];
+    if (key != null && key is! String) {
+      throw const _BadRequest('key is no string');
+    }
+    final state = key == null ? null : receiver.stateOf(key as String);
+    results.add({
+      'results': [for (final result in outcome.results) result.code],
+      'key_state': state?.name,
+      'key_sender': key == null
+          ? null
+          : receiver.currentSenderOf(key as String)?.name,
+      'senders': _senders(receiver),
+    });
+  }
+  return {'steps': results};
+}
+
+Future<Map<String, Object?>> _paddedLength(Map<String, Object?> input) async {
+  final length = input['length'];
+  if (length is! int) throw const _BadRequest('length is no integer');
+  return _accept({'padded_length': sealing.paddedLength(length)});
+}
+
+Future<Map<String, Object?>> _seal(Map<String, Object?> input) async =>
+    _accept({
+      'sealed': _hex(
+        await sealing.seal(
+          _bytes(input['message']),
+          _bytes(input['encryption_key']),
+        ),
+      ),
+    });
+
+Future<Map<String, Object?>> _open(Map<String, Object?> input) async {
+  final keys = input['private_keys'];
+  if (keys is! List<Object?>) {
+    throw const _BadRequest('private_keys is no list');
+  }
+  return _accept({
+    'message': _hex(
+      await sealing.open(_bytes(input['sealed']), [
+        for (final k in keys) _bytes(k),
+      ]),
+    ),
+  });
+}

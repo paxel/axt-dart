@@ -10,7 +10,14 @@ enum ErrorCode {
   schemaUnknown('SCHEMA_UNKNOWN'),
   doesNotResolve('DOES_NOT_RESOLVE'),
   undecodable('UNDECODABLE'),
-  valueInvalid('VALUE_INVALID');
+  valueInvalid('VALUE_INVALID'),
+  signatureInvalid('SIGNATURE_INVALID'),
+  keyInvalid('KEY_INVALID'),
+  encryptionKeyInvalid('ENCRYPTION_KEY_INVALID'),
+  notOpened('NOT_OPENED'),
+  paddingInvalid('PADDING_INVALID'),
+  deviceRejected('DEVICE_REJECTED'),
+  joinInvalid('JOIN_INVALID');
 
   const ErrorCode(this.code);
 

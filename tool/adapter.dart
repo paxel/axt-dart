@@ -15,7 +15,7 @@ Future<void> main() async {
   await for (final line in lines) {
     Map<String, Object?> reply;
     try {
-      reply = answer(jsonDecode(line));
+      reply = await answer(jsonDecode(line));
     } on FormatException catch (e) {
       reply = {'id': null, 'failure': 'not JSON: ${e.message}'};
     }
