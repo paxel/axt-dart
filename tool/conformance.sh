@@ -20,7 +20,11 @@ cd "$work"
 curl -fsSL -o "$ARCHIVE" "$BASE/$ARCHIVE"
 curl -fsSL -o "$BUNDLE" "$BASE/$BUNDLE"
 echo "$AXT_SHA256  $ARCHIVE" | sha256sum --check --strict
-gh attestation verify "$ARCHIVE" --repo paxel/axt --bundle "$BUNDLE"
+# The release attests through the reusable provenance workflow of paxel/gates, so that
+# workflow is the signer; the source is paxel/axt at the release tag.
+gh attestation verify "$ARCHIVE" --bundle "$BUNDLE" --repo paxel/axt \
+  --signer-workflow paxel/gates/.github/workflows/provenance.yml \
+  --source-ref "refs/tags/v$AXT_VERSION"
 
 mkdir suite
 tar -xzf "$ARCHIVE" -C suite --strip-components=1
