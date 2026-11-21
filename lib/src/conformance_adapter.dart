@@ -11,10 +11,11 @@ import 'package:crypto/crypto.dart';
 import '../axt_protocol.dart';
 import 'envelope.dart';
 import 'errors.dart';
+import 'record_decoder.dart';
 
 /// The categories of `spec/conformance.md`, section 2.1, that the adapter
 /// answers. A category is listed only once all of its vectors pass.
-const List<String> implementedCategories = ['encoding'];
+const List<String> implementedCategories = ['encoding', 'types'];
 
 /// The version of the vector file format the adapter reads.
 const int vectorFormat = 1;
@@ -60,7 +61,10 @@ Map<String, Object?> answer(Object? request) {
     return {
       'id': id,
       'output': {
-        'reject': {'error': e.code.code},
+        'reject': {
+          'error': e.code.code,
+          if (e.code == ErrorCode.valueInvalid) 'field': e.field,
+        },
       },
     };
   } on _BadRequest catch (e) {
@@ -75,6 +79,7 @@ final Map<String, _Operation> _operations = {
   'decode_message': _decodeMessage,
   'decode_body': _decodeBody,
   'encode_message': _encodeMessage,
+  'decode_record': _decodeRecord,
 };
 
 Map<String, Object?> _accept(Object? value) => {'accept': value};
@@ -140,6 +145,19 @@ Map<String, Object?> _encodeMessage(Map<String, Object?> input) {
     ),
   );
   return _accept({'message': _hex(message)});
+}
+
+Map<String, Object?> _decodeRecord(Map<String, Object?> input) {
+  final reader = input['reader_schema'];
+  if (reader != null && reader is! String) {
+    throw const _BadRequest('reader_schema is neither a string nor null');
+  }
+  final value = decodeRecord(
+    parseTypeSchema(_string(input, 'writer_schema')),
+    reader == null ? null : parseTypeSchema(reader as String),
+    _bytes(input['body']),
+  );
+  return _accept({'value': _json(value)});
 }
 
 String _string(Map<String, Object?> input, String name) {

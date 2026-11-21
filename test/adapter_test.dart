@@ -169,4 +169,57 @@ void main() {
       containsPair('failure', isA<String>()),
     );
   });
+
+  test('decode_record reads a record and rejects with a field', () {
+    const writer =
+        '{"type":"record","name":"R","fields":[{"name":"n","type":"int"}]}';
+    expect(
+      output('decode_record', {
+        'writer_schema': writer,
+        'reader_schema': null,
+        'body': 'c301${'0' * 16}02',
+      }),
+      {
+        'reject': {'error': 'SCHEMA_UNKNOWN'},
+      },
+    );
+    expect(
+      run('decode_record', {
+        'writer_schema': writer,
+        'reader_schema': 3,
+        'body': '',
+      }),
+      containsPair('failure', isA<String>()),
+    );
+    expect(
+      output('decode_record', {
+        'writer_schema': writer,
+        'reader_schema': writer,
+        'body': '',
+      }),
+      {
+        'reject': {'error': 'UNDECODABLE'},
+      },
+    );
+  });
+
+  test('decode_record gives the value it read', () {
+    const writer =
+        '{"type":"record","name":"R","fields":[{"name":"n","type":"int"}]}';
+    final fingerprint =
+        (output('fingerprint', {'schema': writer})!
+            as Map)['accept']['fingerprint'];
+    expect(
+      output('decode_record', {
+        'writer_schema': writer,
+        'reader_schema': null,
+        'body': 'c301${fingerprint}02',
+      }),
+      {
+        'accept': {
+          'value': {'n': 1},
+        },
+      },
+    );
+  });
 }

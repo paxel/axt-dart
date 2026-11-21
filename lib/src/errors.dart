@@ -6,7 +6,11 @@ library;
 enum ErrorCode {
   tooLarge('TOO_LARGE'),
   formatUnsupported('FORMAT_UNSUPPORTED'),
-  invalidMessage('INVALID_MESSAGE');
+  invalidMessage('INVALID_MESSAGE'),
+  schemaUnknown('SCHEMA_UNKNOWN'),
+  doesNotResolve('DOES_NOT_RESOLVE'),
+  undecodable('UNDECODABLE'),
+  valueInvalid('VALUE_INVALID');
 
   const ErrorCode(this.code);
 
@@ -16,13 +20,17 @@ enum ErrorCode {
 
 /// A rejection with an AXT error code.
 final class AxtException implements Exception {
-  const AxtException(this.code, this.message);
+  const AxtException(this.code, this.message, {this.field});
 
   /// Why AXT rejects it.
   final ErrorCode code;
 
   /// What went wrong, in words.
   final String message;
+
+  /// For `VALUE_INVALID`: the field path of the value (metadata.md, section
+  /// 7.2), or null for a path above 1,024 bytes.
+  final String? field;
 
   @override
   String toString() => 'AxtException(${code.code}): $message';
