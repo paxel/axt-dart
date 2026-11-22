@@ -5,6 +5,8 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:avro/avro.dart';
+
 import 'errors.dart';
 import 'limits.dart';
 import 'records.dart' show recordKey;
@@ -113,4 +115,82 @@ String? extensionsProblem(List<Object?> list, String path) {
     }
   }
   return null;
+}
+
+/// A key as bytes, or as hexadecimal text in the JSON of the vectors.
+String _senderText(Object sender) => switch (sender) {
+  final String text => text.toLowerCase(),
+  _ => [
+    for (final b in sender as List<int>) b.toRadixString(16).padLeft(2, '0'),
+  ].join(),
+};
+
+/// The relations of [relations] that go to a receiver without the links of
+/// the record (shares.md, section 19.1): those to records of the sender's
+/// own set, named by `null` or one of [ownKeys], whose ids are among the
+/// [shared] ids, compared as 128-bit values.
+List<Object?> sharedRelations(
+  List<Object?> relations, {
+  required Set<String> shared,
+  required Set<String> ownKeys,
+}) {
+  final sharedKeys = {for (final id in shared) _key(id)};
+  final own = {for (final key in ownKeys) key.toLowerCase()};
+  return [
+    for (final relation in relations)
+      if (_toShared(relation, sharedKeys, own)) relation,
+  ];
+}
+
+bool _toShared(Object? relation, Set<String?> shared, Set<String> own) {
+  final target = switch ((relation! as Map<String, Object?>)['target']) {
+    Branch(:final value) => value,
+    final value => value,
+  };
+  if (target is! Map<String, Object?> || !target.containsKey('id')) {
+    return false;
+  }
+  final sender = target['sender'];
+  return (sender == null || own.contains(_senderText(sender))) &&
+      shared.contains(_key(target['id']! as String));
+}
+
+/// [value], a record of [schema], without its links: every list of
+/// relations as [sharedRelations] keeps it, every list of extensions empty,
+/// also nested in objects, lists and maps.
+Object? withoutLinks(
+  Schema schema,
+  Object? value, {
+  required Set<String> shared,
+  required Set<String> ownKeys,
+}) {
+  Object? walk(Schema schema, Object? value) => switch (schema) {
+    ArraySchema(items: RecordSchema(fullName: 'axt.Relation')) =>
+      sharedRelations(
+        value! as List<Object?>,
+        shared: shared,
+        ownKeys: ownKeys,
+      ),
+    ArraySchema(items: RecordSchema(fullName: 'axt.Extension')) =>
+      const <Object?>[],
+    RecordSchema(:final fields) => {
+      for (final f in fields)
+        f.name: walk(f.schema, (value! as Map<String, Object?>)[f.name]),
+    },
+    ArraySchema(:final items) => [
+      for (final item in value! as List<Object?>) walk(items, item),
+    ],
+    MapSchema(:final values) => {
+      for (final MapEntry(:key, value: v)
+          in (value! as Map<String, Object?>).entries)
+        key: walk(values, v),
+    },
+    // A derived schema has unions of null and one type only.
+    UnionSchema(:final branches) when value != null => walk(
+      branches.last,
+      value,
+    ),
+    _ => value,
+  };
+  return walk(schema, value);
 }

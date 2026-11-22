@@ -16,6 +16,7 @@ import 'ed25519.dart' as ed25519;
 import 'envelope.dart';
 import 'errors.dart';
 import 'file_reader.dart';
+import 'links.dart' show withoutLinks;
 import 'manifest.dart';
 import 'record_decoder.dart' show parseTypeSchema;
 import 'records.dart';
@@ -74,11 +75,21 @@ final class RecordChange {
 
 /// A record of the app's own, as it hands it to the library to send.
 final class OutgoingRecord {
-  /// A record that is there, with its type and its value.
-  const OutgoingRecord(this.id, this.type, Map<String, Object?> this.value);
+  /// A record that is there, with its type and its value; [withLinks] when a
+  /// share for the receiver that names it lets its links go along
+  /// (`spec/shares.md`, section 19.1).
+  const OutgoingRecord(
+    this.id,
+    this.type,
+    Map<String, Object?> this.value, {
+    this.withLinks = false,
+  });
 
   /// A record its user deleted.
-  const OutgoingRecord.deleted(this.id) : type = null, value = null;
+  const OutgoingRecord.deleted(this.id)
+    : type = null,
+      value = null,
+      withLinks = false;
 
   /// The record's id, a UUID the app keeps beside its entity.
   final String id;
@@ -89,6 +100,10 @@ final class OutgoingRecord {
 
   /// The value; null for a deleted record.
   final Map<String, Object?>? value;
+
+  /// Whether its links go along: its relations to records not shared in the
+  /// same file and to things outside AXT, and its extensions.
+  final bool withLinks;
 }
 
 /// What [AxtNode.inspect] found in a file, before anything is applied.
@@ -650,10 +665,19 @@ final class AxtNode {
   /// For a receiver, the file also holds the `WITHDRAW` of every record that
   /// was sent to it before and is no longer shared with it
   /// (`spec/shares.md`, sections 5.3 and 8.2).
+  ///
+  /// A record goes without its links (`spec/shares.md`, section 19.1) unless
+  /// it is [OutgoingRecord.withLinks], or [ownUser] says that the receiver
+  /// is an app of the app's own user, which gets every record whole.
   Future<Uint8List> writeFile(
     List<OutgoingRecord> shared, {
     Uint8List? receiver,
+    bool ownUser = false,
   }) => _store.transaction(() async {
+    final sharedIds = {
+      for (final record in shared)
+        if (record.value != null) record.id,
+    };
     final datums = <Uint8List>[];
     final schemas = <int, TypeDescription>{};
     final manifest = AvroCodec(writer: axtSchema('axt.Manifest'))
@@ -667,17 +691,30 @@ final class AxtNode {
       final value = record.value;
       final Kind kind;
       final Uint8List body;
+      Uint8List whole;
       if (value == null) {
         kind = Kind.delete;
-        body = Uint8List(0);
+        body = whole = Uint8List(0);
       } else {
         kind = Kind.data;
         final type = record.type!;
         schemas[type.fingerprint] = type;
-        body = AvroCodec(writer: type.schema).encodeSingleObject(value);
+        final codec = AvroCodec(writer: type.schema);
+        // The version follows the record whole, whatever goes along.
+        whole = codec.encodeSingleObject(value);
+        body = record.withLinks || ownUser
+            ? whole
+            : codec.encodeSingleObject(
+                withoutLinks(
+                  type.schema,
+                  value,
+                  shared: sharedIds,
+                  ownKeys: {_hex(publicKey)},
+                ),
+              );
       }
       await _index(_hex(publicKey), id, value, record.type?.schema);
-      final digest = _hex(crypto.sha256.convert(body).bytes);
+      final digest = _hex(crypto.sha256.convert(whole).bytes);
       var version = await _versionOf(id, digest);
       final withdrawal = to == null
           ? null

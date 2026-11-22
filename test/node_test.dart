@@ -572,4 +572,71 @@ void relationTests() {
       );
     },
   );
+
+  test(
+    'links go along only with a share that lets them, or to the own user',
+    () async {
+      final sender = await AxtNode.open(
+        store: MemoryStore(),
+        signingSeed: a.seed,
+        manifest: manifestOfNotes('A'),
+      );
+      final first = newRecordId();
+      final second = newRecordId();
+      const r1 = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+      const r2 = '1f2e3d4c-5b6a-4978-8a96-a5b4c3d2e1f0';
+      const r3 = '0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093';
+      final links = [
+        relation(r1, recordTarget(first, null)),
+        relation(r2, recordTarget(newRecordId(), a.public)),
+        relation(
+          r3,
+          const Branch('axt.RelationOutsideTarget', {
+            'uri': 'https://example.org',
+            'text': '',
+          }),
+        ),
+      ];
+      Future<List<String>> sent({
+        bool withLinks = false,
+        bool ownUser = false,
+      }) async {
+        final reader = await AxtNode.open(
+          store: MemoryStore(),
+          signingSeed: b.seed,
+          manifest: manifestOfNotes('B'),
+          readers: [note],
+        );
+        final held = <String, Map<String, Object?>?>{};
+        final file = await sender.writeFile(
+          [
+            OutgoingRecord(first, note, {
+              'text': 'first',
+              'links': <Object?>[],
+            }),
+            OutgoingRecord(second, note, {
+              'text': 'second',
+              'links': links,
+            }, withLinks: withLinks),
+          ],
+          receiver: b.public,
+          ownUser: ownUser,
+        );
+        await reader.apply(
+          await reader.inspect(file),
+          acceptSender: true,
+          onRecord: (change) async => held[change.id] = change.value,
+          currentValue: (_, id) async => held[id],
+        );
+        return [
+          for (final r in held[second]!['links']! as List<Object?>)
+            (r! as Map)['id'] as String,
+        ];
+      }
+
+      expect(await sent(), [r1]);
+      expect(await sent(withLinks: true), [r1, r2, r3]);
+      expect(await sent(ownUser: true), [r1, r2, r3]);
+    },
+  );
 }

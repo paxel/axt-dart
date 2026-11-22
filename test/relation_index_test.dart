@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:avro/avro.dart';
 import 'package:axt_protocol/src/device_sets.dart';
 import 'package:axt_protocol/src/envelope.dart' show axtSchema;
+import 'package:axt_protocol/src/links.dart';
 import 'package:axt_protocol/src/relation_index.dart';
 import 'package:test/test.dart';
 
@@ -93,6 +94,87 @@ void main() {
       {'id': r2, 'sender': 'ab${'00' * 31}', 'target': t2},
       {'id': r1, 'sender': null, 'target': t3},
     ]);
+  });
+
+  test('a record without its links, also nested', () {
+    final relations = {
+      'type': 'array',
+      'items': jsonDecode(axtSchema('axt.Relation').jsonText),
+    };
+    final extensions = {
+      'type': 'array',
+      'items': jsonDecode(axtSchema('axt.Extension').jsonText),
+    };
+    final schema = Schema.parse(
+      jsonEncode({
+        'type': 'record',
+        'name': 'Holder',
+        'namespace': 'org.example',
+        'fields': [
+          {
+            'name': 'inner',
+            'type': [
+              'null',
+              {
+                'type': 'record',
+                'name': 'Inner',
+                'fields': [
+                  {'name': 'links', 'type': relations},
+                  {'name': 'extensions', 'type': extensions},
+                ],
+              },
+            ],
+          },
+          {
+            'name': 'lists',
+            'type': {'type': 'array', 'items': 'org.example.Inner'},
+          },
+          {
+            'name': 'maps',
+            'type': {'type': 'map', 'values': 'org.example.Inner'},
+          },
+          {'name': 'text', 'type': 'string'},
+        ],
+      }),
+    );
+    final own = Uint8List(32)..[0] = 0xab;
+    Map<String, Object?> inner() => {
+      'links': [
+        relation(r1, {'id': t1, 'sender': null, 'type': '', 'text': ''}),
+        relation(r2, {'id': t2, 'sender': own, 'type': '', 'text': ''}),
+        relation(r1, {
+          'id': t3,
+          'sender': Uint8List(32),
+          'type': '',
+          'text': '',
+        }),
+        relation(r2, {'uri': 'https://example.org', 'text': ''}),
+      ],
+      'extensions': [
+        {'name': 'org.example.A', 'data': Uint8List(10)},
+      ],
+    };
+    final stripped =
+        withoutLinks(
+              schema,
+              {
+                'inner': inner(),
+                'lists': [inner()],
+                'maps': {'a': inner()},
+                'text': 'x',
+              },
+              shared: {t1, t2.toUpperCase(), t3},
+              ownKeys: {'AB${'00' * 31}'},
+            )!
+            as Map<String, Object?>;
+    final expected = {
+      'links': [inner()['links']! as List<Object?>][0].sublist(0, 2),
+      'extensions': <Object?>[],
+    };
+    expect(stripped['inner'], expected);
+    expect(stripped['lists'], [expected]);
+    expect(stripped['maps'], {'a': expected});
+    expect(stripped['text'], 'x');
   });
 
   test('links are sorted by holder, then by relation', () {

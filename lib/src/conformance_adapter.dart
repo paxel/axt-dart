@@ -16,6 +16,7 @@ import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
 import 'file_reader.dart';
+import 'links.dart';
 import 'live_session.dart';
 import 'manifest.dart';
 import 'proposals.dart';
@@ -144,6 +145,7 @@ final Map<String, _Operation> _operations = {
   'pass_withdrawal': _passWithdrawal,
   'join_receivers': _joinReceivers,
   'offer_types': _offerTypes,
+  'shared_value': _sharedValue,
   'owner': _owner,
   'proposer': _proposer,
 };
@@ -715,6 +717,32 @@ Object? _extensionBytes(Object? value) => switch (value) {
   List<Object?>() => [for (final v in value) _extensionBytes(v)],
   _ => value,
 };
+
+/// The record as the sender sends it to one receiver (shares.md, section
+/// 19.1); relations and extensions are found by their shape, as the input
+/// has no schema.
+Future<Map<String, Object?>> _sharedValue(Map<String, Object?> input) async {
+  final value = _object(input, 'value');
+  if (input['own_user'] == true || input['links'] == true) {
+    return _accept({'value': value});
+  }
+  final shared = _strings(input['shared']).toSet();
+  final ownKeys = _strings(input['own_keys']).toSet();
+  Object? walk(Object? value) => switch (value) {
+    final List<Object?> list
+        when list.isNotEmpty &&
+            list.every((e) => _elementKeyOf(e) == ElementKey.id) =>
+      sharedRelations(list, shared: shared, ownKeys: ownKeys),
+    final List<Object?> list when list.isNotEmpty && list.every(_isExtension) =>
+      const <Object?>[],
+    Map<String, Object?>() => {
+      for (final MapEntry(:key, value: v) in value.entries) key: walk(v),
+    },
+    List<Object?>() => [for (final v in value) walk(v)],
+    _ => value,
+  };
+  return _accept({'value': walk(value)});
+}
 
 /// The key of [element] when it is an element of a list merged per
 /// element: a relation or an extension.

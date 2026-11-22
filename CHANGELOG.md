@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Relations resolve across senders: `AxtNode.resolve` finds the record a relation points at, also of another sender or of the app itself, following the senders' device sets and joins, and `AxtNode.linkedFrom` lists the relations that point at a record ([axtdrt-1017](https://github.com/paxel/axt-dart/issues/20)).
 - Extensions of other apps are carried unchanged when their type is unknown; where the user changed one, it is kept per extension, and merged field by field with the sender's when the app knows the extension's type from its readers ([axtdrt-1018](https://github.com/paxel/axt-dart/issues/21)).
 - Relations merge per relation: the relations the user added, changed or removed stay when the sender updates the record ([axtdrt-1019](https://github.com/paxel/axt-dart/issues/22)).
+- A record goes to an app of another user without its links unless `OutgoingRecord.withLinks` says a share lets them go along: only its relations to records shared in the same file stay, and its extensions are left out; `writeFile(ownUser: true)` sends every record whole to an app of the own user ([axtdrt-1020](https://github.com/paxel/axt-dart/issues/23)).
 
 ### Changed
 
