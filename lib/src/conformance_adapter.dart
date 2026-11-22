@@ -1221,6 +1221,7 @@ Future<Map<String, Object?>> _owner(Map<String, Object?> input) async {
         current: _keys(r['current']),
         removed: _keys(r['removed']),
         ownUser: r['own_user'] == true,
+        links: r['links'] == true,
       ),
   ];
   final records = [
@@ -1427,6 +1428,7 @@ Future<Map<String, Object?>> _proposer(Map<String, Object?> input) async {
         ),
     ],
     proposalIds: _strings(device['proposal_ids'] ?? <String>[]),
+    schemas: _strings(device['schemas'] ?? <String>[]),
   );
   final steps = input['steps'];
   if (steps is! List<Object?>) throw const _BadRequest('steps is no list');

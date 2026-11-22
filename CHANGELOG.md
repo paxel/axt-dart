@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Extensions of other apps are carried unchanged when their type is unknown; where the user changed one, it is kept per extension, and merged field by field with the sender's when the app knows the extension's type from its readers ([axtdrt-1018](https://github.com/paxel/axt-dart/issues/21)).
 - Relations merge per relation: the relations the user added, changed or removed stay when the sender updates the record ([axtdrt-1019](https://github.com/paxel/axt-dart/issues/22)).
 - A record goes to an app of another user without its links unless `OutgoingRecord.withLinks` says a share lets them go along: only its relations to records shared in the same file stay, and its extensions are left out; `writeFile(ownUser: true)` sends every record whole to an app of the own user ([axtdrt-1020](https://github.com/paxel/axt-dart/issues/23)).
+- Proposals can add, change or remove single relations and set single fields within an extension; a list proposed whole keeps the elements the proposer's share left out, and a proposal of an element the share left out is not taken ([axtdrt-1021](https://github.com/paxel/axt-dart/issues/24)).
 
 ### Changed
 
