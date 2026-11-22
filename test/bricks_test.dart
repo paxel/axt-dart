@@ -14,9 +14,11 @@ Object? withoutNotes(Object? value) => switch (value) {
   _ => value,
 };
 
-void main() {
+/// Answers every vector of the vendored [file] and compares the answer with
+/// the expected result, as the runner does for these categories.
+void replay(String file) {
   final vectors =
-      (jsonDecode(File('test/vectors/bricks.json').readAsStringSync())
+      (jsonDecode(File('test/vectors/$file').readAsStringSync())
               as Map<String, Object?>)['vectors']!
           as List<Object?>;
   for (final vector in vectors.cast<Map<String, Object?>>()) {
@@ -31,3 +33,5 @@ void main() {
     });
   }
 }
+
+void main() => replay('bricks.json');

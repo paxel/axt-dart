@@ -1,0 +1,4523 @@
+{
+ "format": 1,
+ "specification": "0.2.0",
+ "category": "records",
+ "description": "A receiver applying the record messages of one sender: the version rule, deletions and tombstones, and its user's own changes; and the relations it holds, resolved across senders (spec/records.md).",
+ "vectors": [
+  {
+   "id": "records/apply/the-example-of-records-md-section-9-with-a-receiver-that-deletes",
+   "op": "apply",
+   "description": "the example of records.md, section 9, with a receiver that deletes",
+   "refs": ["records.md 5.2", "records.md 6.1", "records.md 9"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 4}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 5,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 3,
+      "kept_fields": ["location"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "DUPLICATE",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "STALE",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 5,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/the-example-of-records-md-section-9-with-a-receiver-that-keeps-its-user",
+   "op": "apply",
+   "description": "the example of records.md, section 9, with a receiver that keeps its user's changes against a deletion",
+   "refs": ["records.md 6.4", "records.md 9"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "keep"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 4}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 5,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 3,
+      "kept_fields": ["location"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "DUPLICATE",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "STALE",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "KEPT",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "MERGED",
+      "receiver_version": 5,
+      "kept_fields": ["location"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-delete-of-an-unchanged-record-is-applied-also-by-a-receiver-that-keeps",
+   "op": "apply",
+   "description": "a DELETE of an unchanged record is applied, also by a receiver that keeps changes",
+   "refs": ["records.md 6.4"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "keep"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 2}
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-delete-of-an-unknown-id-leaves-a-tombstone-that-older-and-equal-versio",
+   "op": "apply",
+   "description": "a DELETE of an unknown id leaves a tombstone that older and equal versions do not pass",
+   "refs": ["records.md 5.2", "records.md 5.3"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {"kind": "DELETE", "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7", "version": 4}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+       "version": 4,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+       "version": 5,
+       "type": "axt.example.v1.Task",
+       "value": {
+        "title": "Give Mimi her worm tablet",
+        "notes": "",
+        "due": {
+         "year": 2026,
+         "month": 12,
+         "day": 1,
+         "hour": 8,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1796108400000
+        },
+        "due_all_day": false,
+        "repeat": "FREQ=MONTHLY;INTERVAL=3",
+        "done": false,
+        "done_at": null,
+        "priority": "HIGH",
+        "relations": [
+         {
+          "id": "c47d2e90-1f5a-4b38-9d6c-e2a8b0f31c75",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     },
+     {
+      "outcome": "STALE",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     },
+     {
+      "outcome": "DUPLICATE",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 5,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Give Mimi her worm tablet",
+       "notes": "",
+       "due": {
+        "year": 2026,
+        "month": 12,
+        "day": 1,
+        "hour": 8,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1796108400000
+       },
+       "due_all_day": false,
+       "repeat": "FREQ=MONTHLY;INTERVAL=3",
+       "done": false,
+       "done_at": null,
+       "priority": "HIGH",
+       "relations": [
+        {
+         "id": "c47d2e90-1f5a-4b38-9d6c-e2a8b0f31c75",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Pet",
+          "text": "Mimi"
+         },
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-record-its-user-deleted-stays-deleted-also-beside-a-later-delete-and-a",
+   "op": "apply",
+   "description": "a record its user deleted stays deleted, also beside a later DELETE, and a DATA after it is KEPT",
+   "refs": ["records.md 6.3"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_delete": {"id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80"}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 3}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 4,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "KEPT",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "deleted_by_user",
+      "value": null
+     },
+     {
+      "outcome": "STALE",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "deleted_by_user",
+      "value": null
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "deleted_by_user",
+      "value": null
+     },
+     {
+      "outcome": "KEPT",
+      "receiver_version": 4,
+      "kept_fields": [],
+      "state": "deleted_by_user",
+      "value": null
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-receiver-that-tracks-changes-of-the-whole-record-whole-record-keep",
+   "op": "apply",
+   "description": "a receiver that tracks changes of the whole record, whole record keep",
+   "refs": ["records.md 6.2"],
+   "input": {
+    "policy": {"local_changes": "whole_record_keep", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "KEPT",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-receiver-that-tracks-changes-of-the-whole-record-whole-record-take",
+   "op": "apply",
+   "description": "a receiver that tracks changes of the whole record, whole record take",
+   "refs": ["records.md 6.2"],
+   "input": {
+    "policy": {"local_changes": "whole_record_take", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/only-the-kept-values-that-differ-from-the-message-are-named",
+   "op": "apply",
+   "description": "only the kept values that differ from the message are named",
+   "refs": ["records.md 6.1", "records.md 7"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "notes",
+       "value": "Bring the vaccination card"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet: vaccination",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["location"],
+      "state": "there",
+      "value": {
+       "title": "Vet: vaccination",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-nested-record-is-one-value-the-start-its-user-set-is-kept-as-a-whole",
+   "op": "apply",
+   "description": "a nested record is one value: the start its user set is kept as a whole",
+   "refs": ["records.md 6.1", "time.md 6"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "start",
+       "value": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 11,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763460000000
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 3,
+      "kept_fields": ["start"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 11,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763460000000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-message-that-brings-the-value-its-user-set-is-applied",
+   "op": "apply",
+   "description": "a message that brings the value its user set is applied",
+   "refs": ["records.md 6.1"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "Dr. Weber, Hauptstr. 5",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/ids-compare-as-128-bit-values-whatever-the-case-of-their-digits",
+   "op": "apply",
+   "description": "ids compare as 128-bit values, whatever the case of their digits",
+   "refs": ["records.md 2", "envelope.md 7"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3F2C8A5E-9B1D-4C7E-8A6F-2D4B5C6E7F80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "DUPLICATE",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 30,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763458200000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-message-that-cannot-be-processed-changes-nothing",
+   "op": "apply",
+   "description": "a message that cannot be processed changes nothing",
+   "refs": ["records.md 2", "records.md 3", "records.md 7"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "vet-appointment",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "00000000-0000-0000-0000-000000000000",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "ffffffff-ffff-ffff-ffff-ffffffffffff",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e9b1d4c7e8a6f2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 0,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": -1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 30,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763458200000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 0}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {"error": "RECORD_ID_INVALID"},
+     {"error": "RECORD_ID_INVALID"},
+     {"error": "RECORD_ID_INVALID"},
+     {"error": "RECORD_ID_INVALID"},
+     {"error": "VERSION_INVALID"},
+     {"error": "VERSION_INVALID"},
+     {"error": "VERSION_INVALID"},
+     {
+      "outcome": "DUPLICATE",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/a-record-keeps-its-type-also-through-a-tombstone",
+   "op": "apply",
+   "description": "a record keeps its type, also through a tombstone",
+   "refs": ["records.md 4.3"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Task",
+       "value": {
+        "title": "Give Mimi her worm tablet",
+        "notes": "",
+        "due": {
+         "year": 2026,
+         "month": 12,
+         "day": 1,
+         "hour": 8,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1796108400000
+        },
+        "due_all_day": false,
+        "repeat": "FREQ=MONTHLY;INTERVAL=3",
+        "done": false,
+        "done_at": null,
+        "priority": "HIGH",
+        "relations": [
+         {
+          "id": "c47d2e90-1f5a-4b38-9d6c-e2a8b0f31c75",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {"kind": "DELETE", "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80", "version": 2}
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Task",
+       "value": {
+        "title": "Give Mimi her worm tablet",
+        "notes": "",
+        "due": {
+         "year": 2026,
+         "month": 12,
+         "day": 1,
+         "hour": 8,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1796108400000
+        },
+        "due_all_day": false,
+        "repeat": "FREQ=MONTHLY;INTERVAL=3",
+        "done": false,
+        "done_at": null,
+        "priority": "HIGH",
+        "relations": [
+         {
+          "id": "c47d2e90-1f5a-4b38-9d6c-e2a8b0f31c75",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     },
+     {"error": "TYPE_CHANGED"},
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 2,
+      "kept_fields": [],
+      "state": "tombstone",
+      "value": null
+     },
+     {"error": "TYPE_CHANGED"},
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/relations-merge-per-element-the-user-s-addition-and-removal-stay-also-wh",
+   "op": "apply",
+   "description": "relations merge per element: the user's addition and removal stay, also when the sender adds the same relation again, and the sender's other changes are taken",
+   "refs": ["records.md 6.1", "sync.md 25.1"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [
+         {
+          "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "Her yearly vaccination.",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "relations",
+       "value": [
+        {
+         "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Pet",
+          "text": "Mimi"
+         },
+         "note": "Her yearly vaccination.",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+         "kind": "axt.related",
+         "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ]
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [
+         {
+          "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "Booster",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         },
+         {
+          "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Task",
+           "text": "Collar"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "relations",
+       "value": [
+        {
+         "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Task",
+          "text": "Collar"
+         },
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+         "kind": "axt.related",
+         "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ]
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [
+         {
+          "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "Booster",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         },
+         {
+          "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Task",
+           "text": "Collar"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 4,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [
+         {
+          "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Pet",
+           "text": "Mimi"
+          },
+          "note": "Booster",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         },
+         {
+          "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+          "kind": "axt.related",
+          "target": {
+           "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+           "sender": null,
+           "type": "axt.example.v1.Task",
+           "text": "Collar"
+          },
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         },
+         {
+          "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+          "kind": "axt.related",
+          "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+          "note": "",
+          "start": null,
+          "end": null,
+          "attributes": {}
+         }
+        ],
+        "extensions": []
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [
+        {
+         "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Pet",
+          "text": "Mimi"
+         },
+         "note": "Her yearly vaccination.",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["relations"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [
+        {
+         "id": "f1b3d5a7-2c4e-4f60-8a1b-3c5d7e9f0a2b",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Pet",
+          "text": "Mimi"
+         },
+         "note": "Booster",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Task",
+          "text": "Collar"
+         },
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+         "kind": "axt.related",
+         "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ],
+       "extensions": []
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 3,
+      "kept_fields": ["relations"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [
+        {
+         "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Task",
+          "text": "Collar"
+         },
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+         "kind": "axt.related",
+         "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ],
+       "extensions": []
+      }
+     },
+     {
+      "outcome": "MERGED",
+      "receiver_version": 4,
+      "kept_fields": ["relations"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [
+        {
+         "id": "d2e4f6a8-1b3c-4d5e-9f70-8a1b2c3d4e5f",
+         "kind": "axt.related",
+         "target": {
+          "id": "0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093",
+          "sender": null,
+          "type": "axt.example.v1.Task",
+          "text": "Collar"
+         },
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        },
+        {
+         "id": "a2c4e6f8-0b1d-4e3f-8a5c-7e9f1b3d5a70",
+         "kind": "axt.related",
+         "target": {"uri": "https://tierarzt.example/praxis", "text": "Tierarztpraxis"},
+         "note": "",
+         "start": null,
+         "end": null,
+         "attributes": {}
+        }
+       ],
+       "extensions": []
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/an-extension-of-a-type-the-receiver-does-not-know-is-kept-as-it-came-thr",
+   "op": "apply",
+   "description": "an extension of a type the receiver does not know is kept as it came, through local changes and updates",
+   "refs": ["records.md 6.1", "fields.md 12.4"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "location",
+       "value": "Dr. Weber, Hauptstr. 5"
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "Bring the vaccination card",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["location"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "Dr. Weber, Hauptstr. 5",
+       "notes": "Bring the vaccination card",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/the-user-s-change-within-an-extension-of-a-known-type-merges-field-by-fi",
+   "op": "apply",
+   "description": "the user's change within an extension of a known type merges field by field with the sender's",
+   "refs": ["records.md 6.1", "fields.md 12.2", "fields.md 12.4", "sync.md 25.9"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "extensions",
+       "value": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a7461626279"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+        ]
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a626c61636b"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+        ]
+       }
+      }
+     }
+    ],
+    "extensions": [
+     "{\"axt.version\":1,\"doc\":\"What cat-a-log adds to a pet that is a cat.\",\"fields\":[{\"default\":\"\",\"doc\":\"The TASSO registration; empty if none.\",\"name\":\"tasso_id\",\"type\":\"string\"},{\"default\":\"\",\"doc\":\"The colour of the fur; empty if not known.\",\"name\":\"fur\",\"type\":\"string\"}],\"name\":\"CatExtension\",\"namespace\":\"org.example.catalog\",\"type\":\"record\"}"
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["extensions"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+       ]
+      }
+     },
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 3,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/the-user-s-change-of-an-extension-of-a-type-the-receiver-does-not-know-k",
+   "op": "apply",
+   "description": "the user's change of an extension of a type the receiver does not know keeps the user's extension whole",
+   "refs": ["records.md 6.1", "fields.md 12.2", "fields.md 12.4", "sync.md 25.9"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "extensions",
+       "value": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a7461626279"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+        ]
+       }
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 3,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303635343332310a626c61636b"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+        ]
+       }
+      }
+     }
+    ],
+    "extensions": []
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["extensions"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+       ]
+      }
+     },
+     {
+      "outcome": "MERGED",
+      "receiver_version": 3,
+      "kept_fields": ["extensions"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c30100000000000000000206746167"}
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/apply/an-extension-that-the-user-changed-within-stays-when-the-sender-removes",
+   "op": "apply",
+   "description": "an extension that the user changed within stays when the sender removes it",
+   "refs": ["records.md 6.1", "fields.md 12.4"],
+   "input": {
+    "policy": {"local_changes": "per_field", "delete_with_local_changes": "delete"},
+    "events": [
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 1,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {
+          "name": "org.example.catalog.CatExtension",
+          "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+         },
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     },
+     {
+      "local_change": {
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "field": "extensions",
+       "value": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {
+      "message": {
+       "kind": "DATA",
+       "id": "3f2c8a5e-9b1d-4c7e-8a6f-2d4b5c6e7f80",
+       "version": 2,
+       "type": "axt.example.v1.Appointment",
+       "value": {
+        "title": "Vet",
+        "start": {
+         "year": 2025,
+         "month": 11,
+         "day": 18,
+         "hour": 10,
+         "minute": 0,
+         "second": 0,
+         "millisecond": 0,
+         "zone": "Europe/Berlin",
+         "offset_seconds": 3600,
+         "instant_ms": 1763456400000
+        },
+        "end": null,
+        "all_day": false,
+        "location": "",
+        "notes": "",
+        "reminders": [],
+        "relations": [],
+        "extensions": [
+         {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+        ]
+       }
+      }
+     }
+    ],
+    "extensions": [
+     "{\"axt.version\":1,\"doc\":\"What cat-a-log adds to a pet that is a cat.\",\"fields\":[{\"default\":\"\",\"doc\":\"The TASSO registration; empty if none.\",\"name\":\"tasso_id\",\"type\":\"string\"},{\"default\":\"\",\"doc\":\"The colour of the fur; empty if not known.\",\"name\":\"fur\",\"type\":\"string\"}],\"name\":\"CatExtension\",\"namespace\":\"org.example.catalog\",\"type\":\"record\"}"
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "outcome": "APPLIED",
+      "receiver_version": 1,
+      "kept_fields": [],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a7461626279"
+        },
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"}
+       ]
+      }
+     },
+     {},
+     {
+      "outcome": "MERGED",
+      "receiver_version": 2,
+      "kept_fields": ["extensions"],
+      "state": "there",
+      "value": {
+       "title": "Vet",
+       "start": {
+        "year": 2025,
+        "month": 11,
+        "day": 18,
+        "hour": 10,
+        "minute": 0,
+        "second": 0,
+        "millisecond": 0,
+        "zone": "Europe/Berlin",
+        "offset_seconds": 3600,
+        "instant_ms": 1763456400000
+       },
+       "end": null,
+       "all_day": false,
+       "location": "",
+       "notes": "",
+       "reminders": [],
+       "relations": [],
+       "extensions": [
+        {"name": "org.example.vetapp.VetExtension", "data": "c3010000000000000000020863686970"},
+        {
+         "name": "org.example.catalog.CatExtension",
+         "data": "c301f6424ab2a3fa9f621e3237363039383130303132333435360a626c61636b"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/relations/a-relation-names-a-sender-by-any-key-of-its-set-current-or-removed-or-by",
+   "op": "relations",
+   "description": "a relation names a sender by any key of its set, current or removed, or by null for the holder's sender; a key of the receiver's own set names its own records; a key of no known sender, a refused key among them, a record not held and a tombstone leave it unresolved",
+   "refs": ["records.md 10.1", "records.md 10.2", "records.md 10.3", "keys.md 3.4"],
+   "input": {
+    "own": {
+     "name": "me",
+     "current": ["2a2a57f1835a1c4f3d06c3f4137f9454b4bdf5244ff4982c71967b3f7173961e"],
+     "removed": ["0552d4c40a4b4b7f8a14163e4f179726709654a879592d378b89931e2f9883fe"],
+     "records": [
+      {"id": "00000004-5e55-4d0e-8a11-000000000004", "version": 1, "state": "there"}
+     ]
+    },
+    "senders": [
+     {
+      "name": "s",
+      "current": ["7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35"],
+      "removed": ["d126bc923963f9b5c4225c23e9460c6c3324325ecee3e39736e97660d3859361"],
+      "records": [
+       {"id": "00000001-5e55-4d0e-8a11-000000000001", "version": 2, "state": "there"},
+       {"id": "00000002-5e55-4d0e-8a11-000000000002", "version": 3, "state": "tombstone"}
+      ]
+     },
+     {
+      "name": "t",
+      "current": ["38b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566"],
+      "removed": [],
+      "records": [
+       {"id": "00000003-5e55-4d0e-8a11-000000000003", "version": 1, "state": "there"},
+       {"id": "00000005-5e55-4d0e-8a11-000000000005", "version": 4, "state": "there"}
+      ]
+     }
+    ],
+    "refused": ["839bdf8c8dd591ef1e47f0626c0ccf58f5f21241495f1ccf01f9cf75a394abb2"],
+    "relations": [
+     {
+      "id": "00000001-4e1a-4b0e-9c22-000000000001",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     },
+     {
+      "id": "00000002-4e1a-4b0e-9c22-000000000002",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "d126bc923963f9b5c4225c23e9460c6c3324325ecee3e39736e97660d3859361",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     },
+     {
+      "id": "00000003-4e1a-4b0e-9c22-000000000003",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {"sender": null, "id": "00000005-5e55-4d0e-8a11-000000000005"}
+     },
+     {
+      "id": "00000004-4e1a-4b0e-9c22-000000000004",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "38b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566",
+       "id": "00000005-5e55-4d0e-8a11-000000000005"
+      }
+     },
+     {
+      "id": "00000005-4e1a-4b0e-9c22-000000000005",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35",
+       "id": "00000002-5e55-4d0e-8a11-000000000002"
+      }
+     },
+     {
+      "id": "00000006-4e1a-4b0e-9c22-000000000006",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35",
+       "id": "00000006-5e55-4d0e-8a11-000000000006"
+      }
+     },
+     {
+      "id": "00000007-4e1a-4b0e-9c22-000000000007",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "cb19b756c119bc48305a62ba6818a32255e01f7c84e2d2945de8b83bb35eb85b",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     },
+     {
+      "id": "00000008-4e1a-4b0e-9c22-000000000008",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "839bdf8c8dd591ef1e47f0626c0ccf58f5f21241495f1ccf01f9cf75a394abb2",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     },
+     {
+      "id": "00000009-4e1a-4b0e-9c22-000000000009",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "0552d4c40a4b4b7f8a14163e4f179726709654a879592d378b89931e2f9883fe",
+       "id": "00000004-5e55-4d0e-8a11-000000000004"
+      }
+     }
+    ],
+    "steps": [
+     {"lookup": true}
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "s", "resolved": true},
+       {"id": "00000002-4e1a-4b0e-9c22-000000000002", "sender": "s", "resolved": true},
+       {"id": "00000003-4e1a-4b0e-9c22-000000000003", "sender": "t", "resolved": true},
+       {"id": "00000004-4e1a-4b0e-9c22-000000000004", "sender": "t", "resolved": true},
+       {"id": "00000005-4e1a-4b0e-9c22-000000000005", "sender": "s", "resolved": false},
+       {"id": "00000006-4e1a-4b0e-9c22-000000000006", "sender": "s", "resolved": false},
+       {"id": "00000007-4e1a-4b0e-9c22-000000000007", "sender": null, "resolved": false},
+       {"id": "00000008-4e1a-4b0e-9c22-000000000008", "sender": null, "resolved": false},
+       {"id": "00000009-4e1a-4b0e-9c22-000000000009", "sender": "me", "resolved": true}
+      ],
+      "linked_from": [
+       {
+        "sender": "me",
+        "id": "00000004-5e55-4d0e-8a11-000000000004",
+        "from": [
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000009-4e1a-4b0e-9c22-000000000009"
+         }
+        ]
+       },
+       {
+        "sender": "s",
+        "id": "00000001-5e55-4d0e-8a11-000000000001",
+        "from": [
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         },
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000002-4e1a-4b0e-9c22-000000000002"
+         }
+        ]
+       },
+       {
+        "sender": "t",
+        "id": "00000005-5e55-4d0e-8a11-000000000005",
+        "from": [
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000003-4e1a-4b0e-9c22-000000000003"
+         },
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000004-4e1a-4b0e-9c22-000000000004"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/relations/a-relation-by-a-key-the-receiver-does-not-know-stays-unresolved-until-a",
+   "op": "relations",
+   "description": "a relation by a key the receiver does not know stays unresolved until a chain adds the key to the sender, and stays resolved after the key's removal",
+   "refs": ["records.md 10.1", "records.md 10.2", "records.md 10.3", "keys.md 5.5"],
+   "input": {
+    "own": {
+     "name": "me",
+     "current": ["2a2a57f1835a1c4f3d06c3f4137f9454b4bdf5244ff4982c71967b3f7173961e"],
+     "removed": [],
+     "records": [
+      {"id": "00000004-5e55-4d0e-8a11-000000000004", "version": 1, "state": "there"}
+     ]
+    },
+    "senders": [
+     {
+      "name": "s",
+      "current": ["7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35"],
+      "removed": [],
+      "records": [
+       {"id": "00000001-5e55-4d0e-8a11-000000000001", "version": 2, "state": "there"}
+      ]
+     },
+     {
+      "name": "t",
+      "current": ["38b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566"],
+      "removed": [],
+      "records": [
+       {"id": "00000003-5e55-4d0e-8a11-000000000003", "version": 1, "state": "there"}
+      ]
+     }
+    ],
+    "refused": [],
+    "relations": [
+     {
+      "id": "00000001-4e1a-4b0e-9c22-000000000001",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {
+       "sender": "cb19b756c119bc48305a62ba6818a32255e01f7c84e2d2945de8b83bb35eb85b",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     }
+    ],
+    "steps": [
+     {"lookup": true},
+     {
+      "chain": [
+       "c30116306f71b9ce9ea802127b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d3500d401c30131317b4bf41e0dc6cb19b756c119bc48305a62ba6818a32255e01f7c84e2d2945de8b83bb35eb85b5db4a75265af1b9f4dfb645675c6976898262d29f251bb07eca5176cd341ba1b7d6c9e5c87232efda427bfea837179e01e0c303a161c1c14cec4146584071a0ff469c19b080391ed36b6db90239bac248c37126079abab18062031ea7905c1bac084e143a65026a182ac3098f676d3da66bf2c857f263d02b1584fe48f642b08"
+      ]
+     },
+     {"lookup": true},
+     {
+      "chain": [
+       "c30116306f71b9ce9ea802147b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d350054c301dcaab2aa8275f5d0cb19b756c119bc48305a62ba6818a32255e01f7c84e2d2945de8b83bb35eb85b7ff4149a811cbc7686e4cd1aeccd39713b6d023bbb83ee915b269f25098a5ae437ff9ed103533ff95c0dcbe15869df84c9aa324f1be4f6fce90cf64bae5e7305"
+      ]
+     },
+     {"lookup": true}
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": null, "resolved": false}
+      ],
+      "linked_from": []
+     },
+     {
+      "results": ["APPLIED"]
+     },
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "s", "resolved": true}
+      ],
+      "linked_from": [
+       {
+        "sender": "s",
+        "id": "00000001-5e55-4d0e-8a11-000000000001",
+        "from": [
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "results": ["APPLIED"]
+     },
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "s", "resolved": true}
+      ],
+      "linked_from": [
+       {
+        "sender": "s",
+        "id": "00000001-5e55-4d0e-8a11-000000000001",
+        "from": [
+         {
+          "sender": "t",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/relations/the-receiver-s-own-link-a-relation-on-its-own-record-to-a-received-recor",
+   "op": "relations",
+   "description": "the receiver's own link: a relation on its own record to a received record, which shows it as linked from, and a relation of the sender to the receiver's record, by a key of the receiver's set",
+   "refs": ["records.md 10.1", "records.md 10.2", "records.md 10.3", "records.md 10.5"],
+   "input": {
+    "own": {
+     "name": "me",
+     "current": ["2a2a57f1835a1c4f3d06c3f4137f9454b4bdf5244ff4982c71967b3f7173961e"],
+     "removed": [],
+     "records": [
+      {"id": "00000004-5e55-4d0e-8a11-000000000004", "version": 1, "state": "there"}
+     ]
+    },
+    "senders": [
+     {
+      "name": "s",
+      "current": ["7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35"],
+      "removed": [],
+      "records": [
+       {"id": "00000001-5e55-4d0e-8a11-000000000001", "version": 2, "state": "there"},
+       {"id": "00000002-5e55-4d0e-8a11-000000000002", "version": 1, "state": "there"}
+      ]
+     }
+    ],
+    "refused": [],
+    "relations": [
+     {
+      "id": "00000001-4e1a-4b0e-9c22-000000000001",
+      "holder": {"sender": "me", "id": "00000004-5e55-4d0e-8a11-000000000004"},
+      "target": {
+       "sender": "7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35",
+       "id": "00000001-5e55-4d0e-8a11-000000000001"
+      }
+     },
+     {
+      "id": "00000002-4e1a-4b0e-9c22-000000000002",
+      "holder": {"sender": "s", "id": "00000002-5e55-4d0e-8a11-000000000002"},
+      "target": {
+       "sender": "2a2a57f1835a1c4f3d06c3f4137f9454b4bdf5244ff4982c71967b3f7173961e",
+       "id": "00000004-5e55-4d0e-8a11-000000000004"
+      }
+     }
+    ],
+    "steps": [
+     {"lookup": true}
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "s", "resolved": true},
+       {"id": "00000002-4e1a-4b0e-9c22-000000000002", "sender": "me", "resolved": true}
+      ],
+      "linked_from": [
+       {
+        "sender": "me",
+        "id": "00000004-5e55-4d0e-8a11-000000000004",
+        "from": [
+         {
+          "sender": "s",
+          "id": "00000002-5e55-4d0e-8a11-000000000002",
+          "relation": "00000002-4e1a-4b0e-9c22-000000000002"
+         }
+        ]
+       },
+       {
+        "sender": "s",
+        "id": "00000001-5e55-4d0e-8a11-000000000001",
+        "from": [
+         {
+          "sender": "me",
+          "id": "00000004-5e55-4d0e-8a11-000000000004",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "id": "records/relations/after-two-senders-join-a-key-of-the-second-names-the-sender-that-stays-a",
+   "op": "relations",
+   "description": "after two senders join, a key of the second names the sender that stays, and null names the records the second sender brought",
+   "refs": ["records.md 10.1", "records.md 10.2", "records.md 10.3", "keys.md 5.5"],
+   "input": {
+    "own": {
+     "name": "me",
+     "current": ["2a2a57f1835a1c4f3d06c3f4137f9454b4bdf5244ff4982c71967b3f7173961e"],
+     "removed": [],
+     "records": [
+      {"id": "00000004-5e55-4d0e-8a11-000000000004", "version": 1, "state": "there"}
+     ]
+    },
+    "senders": [
+     {
+      "name": "s",
+      "current": ["7b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d35"],
+      "removed": ["d126bc923963f9b5c4225c23e9460c6c3324325ecee3e39736e97660d3859361"],
+      "records": [
+       {"id": "00000001-5e55-4d0e-8a11-000000000001", "version": 2, "state": "there"}
+      ]
+     },
+     {
+      "name": "t",
+      "current": ["38b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566"],
+      "removed": [],
+      "records": [
+       {"id": "00000003-5e55-4d0e-8a11-000000000003", "version": 1, "state": "there"}
+      ]
+     }
+    ],
+    "refused": [],
+    "relations": [
+     {
+      "id": "00000001-4e1a-4b0e-9c22-000000000001",
+      "holder": {"sender": "s", "id": "00000001-5e55-4d0e-8a11-000000000001"},
+      "target": {
+       "sender": "38b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566",
+       "id": "00000003-5e55-4d0e-8a11-000000000003"
+      }
+     },
+     {
+      "id": "00000002-4e1a-4b0e-9c22-000000000002",
+      "holder": {"sender": "t", "id": "00000003-5e55-4d0e-8a11-000000000003"},
+      "target": {"sender": null, "id": "00000001-5e55-4d0e-8a11-000000000001"}
+     }
+    ],
+    "steps": [
+     {"lookup": true},
+     {
+      "chain": [
+       "c30116306f71b9ce9ea802127b4c758de98220326aec1dc4b22500409dd74c45977c6148e2874dbd99f58d3500d401c30131317b4bf41e0dc638b3cd22d386cec6b4160f20df1cb3c4af4360a900890edad9cc02b6f397a566841ca90895fd60e7b70b6825c09a1f7c0df9edb6f97ccd961660a06fa489c74e5151ac3330b8fd4621eaa6629f9412f9b3d539ff46fa8e09724497b3c0169e0939562c385d3c248507567486d3a74eb4afcdd822eb23fe21de0d6241df095a1a2bb2bb6218261ee83122ddbd56ff98d475ac62a8b3fc323ddd5cbe60183f4700"
+      ]
+     },
+     {"lookup": true}
+    ]
+   },
+   "expected": {
+    "steps": [
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "t", "resolved": true},
+       {"id": "00000002-4e1a-4b0e-9c22-000000000002", "sender": "t", "resolved": false}
+      ],
+      "linked_from": [
+       {
+        "sender": "t",
+        "id": "00000003-5e55-4d0e-8a11-000000000003",
+        "from": [
+         {
+          "sender": "s",
+          "id": "00000001-5e55-4d0e-8a11-000000000001",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "results": ["APPLIED"]
+     },
+     {
+      "relations": [
+       {"id": "00000001-4e1a-4b0e-9c22-000000000001", "sender": "s", "resolved": true},
+       {"id": "00000002-4e1a-4b0e-9c22-000000000002", "sender": "s", "resolved": true}
+      ],
+      "linked_from": [
+       {
+        "sender": "s",
+        "id": "00000001-5e55-4d0e-8a11-000000000001",
+        "from": [
+         {
+          "sender": "s",
+          "id": "00000003-5e55-4d0e-8a11-000000000003",
+          "relation": "00000002-4e1a-4b0e-9c22-000000000002"
+         }
+        ]
+       },
+       {
+        "sender": "s",
+        "id": "00000003-5e55-4d0e-8a11-000000000003",
+        "from": [
+         {
+          "sender": "s",
+          "id": "00000001-5e55-4d0e-8a11-000000000001",
+          "relation": "00000001-4e1a-4b0e-9c22-000000000001"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}
