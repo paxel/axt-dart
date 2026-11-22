@@ -10,6 +10,7 @@ import 'package:avro/avro.dart';
 
 import 'envelope.dart' show axtSchema, withoutLogicalTypes;
 import 'errors.dart';
+import 'links.dart';
 import 'time_values.dart';
 
 /// The deepest record a receiver decodes (types.md, section 5.7).
@@ -33,8 +34,9 @@ Schema parseTypeSchema(String text) {
 }
 
 /// Throws [AxtException] `DOES_NOT_RESOLVE` when [schema] defines a named
-/// type in the namespace `axt` other than a time type with its published
-/// Parsing Canonical Form (time.md, section 3.1).
+/// type in the namespace `axt` other than a time type, `axt.Relation`, its
+/// nested types or `axt.Extension` with its published Parsing Canonical Form
+/// (time.md, section 3.1; fields.md, sections 11.6 and 12.5).
 void checkAxtNames(Schema schema) {
   final seen = <String>{};
   void walk(Schema s) {
@@ -43,12 +45,17 @@ void checkAxtNames(Schema schema) {
         return;
       case NamedSchema(:final namespace, :final fullName)
           when namespace == 'axt':
-        if (!timeTypes.contains(fullName) ||
-            s.canonicalForm != axtSchema(fullName).canonicalForm) {
+        final published = _published[fullName];
+        if (published == null || s.canonicalForm != published) {
           throw AxtException(
             ErrorCode.doesNotResolve,
-            '$fullName is reserved for the published time types',
+            '$fullName is reserved for the published types',
           );
+        }
+        if (s is RecordSchema) {
+          for (final field in s.fields) {
+            walk(field.schema);
+          }
         }
       case RecordSchema(:final fields):
         for (final field in fields) {
@@ -68,15 +75,50 @@ void checkAxtNames(Schema schema) {
   walk(schema);
 }
 
+/// The Parsing Canonical Forms of the named types that a type may define in
+/// the namespace `axt`.
+final Map<String, String> _published = () {
+  final out = <String, String>{};
+  void walk(Schema s) {
+    switch (s) {
+      case NamedSchema(:final fullName) when out.containsKey(fullName):
+        return;
+      case RecordSchema(:final fullName, :final fields):
+        out[fullName] = s.canonicalForm;
+        for (final field in fields) {
+          walk(field.schema);
+        }
+      case NamedSchema(:final fullName):
+        out[fullName] = s.canonicalForm;
+      case UnionSchema(:final branches):
+        branches.forEach(walk);
+      default:
+        // The published schemas hold no named type in an array or a map.
+        break;
+    }
+  }
+
+  for (final name in [...timeTypes, 'axt.Relation', 'axt.Extension']) {
+    walk(axtSchema(name));
+  }
+  return out;
+}();
+
 /// Decodes [body], a single-object encoding written with [writer], as
 /// [reader], or as [writer] when [reader] is null.
 ///
 /// Throws [AxtException] with `SCHEMA_UNKNOWN` when the body's fingerprint is
 /// not the writer schema's, `DOES_NOT_RESOLVE` when the schemas do not
 /// resolve, `UNDECODABLE` when the bytes are no value of the writer schema or
-/// nest deeper than [maxDataDepth], and `VALUE_INVALID` for a time value that
-/// is not valid.
-Object? decodeRecord(Schema writer, Schema? reader, Uint8List body) {
+/// nest deeper than [maxDataDepth], and `VALUE_INVALID` for a time value, a
+/// relation or an extension that is not valid; without [check], not for
+/// those.
+Object? decodeRecord(
+  Schema writer,
+  Schema? reader,
+  Uint8List body, {
+  bool check = true,
+}) {
   checkAxtNames(writer);
   if (reader != null) {
     checkAxtNames(reader);
@@ -112,16 +154,7 @@ Object? decodeRecord(Schema writer, Schema? reader, Uint8List body) {
       'the record nests deeper than $maxDataDepth',
     );
   }
-  final invalid = _firstInvalidTime(codec.reader, value, '');
-  if (invalid != null) {
-    throw AxtException(
-      ErrorCode.valueInvalid,
-      'the time value at "${invalid.path}" is not valid',
-      field: utf8.encode(invalid.path).length > maxFieldPathBytes
-          ? null
-          : invalid.path,
-    );
-  }
+  if (check) _throwInvalid(_firstInvalid(codec.reader, value, ''));
   return value;
 }
 
@@ -130,7 +163,8 @@ Object? decodeRecord(Schema writer, Schema? reader, Uint8List body) {
 /// [path].
 ///
 /// Throws [AxtException] `UNDECODABLE` for a value deeper than
-/// [maxDataDepth] and `VALUE_INVALID` for a time value that is not valid.
+/// [maxDataDepth] and `VALUE_INVALID` for a time value, a relation or an
+/// extension that is not valid.
 void checkValue(
   Schema schema,
   Object? value,
@@ -143,17 +177,23 @@ void checkValue(
       'the value nests deeper than $maxDataDepth',
     );
   }
-  final invalid = _firstInvalidTime(schema, value, path);
-  if (invalid != null) {
-    throw AxtException(
-      ErrorCode.valueInvalid,
-      'the time value at "${invalid.path}" is not valid',
-      field: utf8.encode(invalid.path).length > maxFieldPathBytes
-          ? null
-          : invalid.path,
-    );
-  }
+  _throwInvalid(_firstInvalid(schema, value, path));
 }
+
+/// Throws [AxtException] `VALUE_INVALID` for the value at [path], unless
+/// [path] is null.
+void _throwInvalid(String? path) {
+  if (path == null) return;
+  throw AxtException(
+    ErrorCode.valueInvalid,
+    'the value at "$path" breaks a rule',
+    field: fieldPath(path),
+  );
+}
+
+/// [path] as the `field` of an error: null when it is too long.
+String? fieldPath(String path) =>
+    utf8.encode(path).length > maxFieldPathBytes ? null : path;
 
 /// Throws [AxtException] `DOES_NOT_RESOLVE` unless the full names of the two
 /// record schemas match or the writer's is one of the reader's aliases
@@ -214,31 +254,36 @@ int _depth(Schema schema, Object? value) => switch (schema) {
 
 int _max(List<int> depths) => depths.fold(0, (a, b) => a > b ? a : b);
 
-/// The first time value that is not valid, in the order of the encoding.
-({String path})? _firstInvalidTime(Schema schema, Object? value, String path) {
+/// The path of the first time value, relation or extension that is not
+/// valid, in the order of the encoding.
+String? _firstInvalid(Schema schema, Object? value, String path) {
   switch (schema) {
     case RecordSchema(:final fullName, :final fields):
       final record = value! as Map<String, Object?>;
       if (timeTypes.contains(fullName)) {
-        return isValidTimeValue(fullName, record) ? null : (path: path);
+        return isValidTimeValue(fullName, record) ? null : path;
       }
       for (final field in fields) {
-        final found = _firstInvalidTime(
+        final found = _firstInvalid(
           field.schema,
           record[field.name],
           path.isEmpty ? field.name : '$path.${field.name}',
         );
         if (found != null) return found;
       }
+    case ArraySchema(items: RecordSchema(fullName: 'axt.Relation')):
+      return relationsProblem(value! as List<Object?>, path);
+    case ArraySchema(items: RecordSchema(fullName: 'axt.Extension')):
+      return extensionsProblem(value! as List<Object?>, path);
     case ArraySchema(:final items):
       final list = value! as List<Object?>;
       for (var i = 0; i < list.length; i++) {
-        final found = _firstInvalidTime(items, list[i], '$path[$i]');
+        final found = _firstInvalid(items, list[i], '$path[$i]');
         if (found != null) return found;
       }
     case MapSchema(:final values):
       for (final entry in (value! as Map<String, Object?>).entries) {
-        final found = _firstInvalidTime(
+        final found = _firstInvalid(
           values,
           entry.value,
           '$path[${jsonEncode(entry.key)}]',
@@ -247,7 +292,7 @@ int _max(List<int> depths) => depths.fold(0, (a, b) => a > b ? a : b);
       }
     case UnionSchema():
       final branch = _branch(schema, value);
-      if (branch != null) return _firstInvalidTime(branch, value, path);
+      if (branch != null) return _firstInvalid(branch, value, path);
     default:
       break;
   }

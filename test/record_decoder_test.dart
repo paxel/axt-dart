@@ -281,6 +281,42 @@ void main() {
     );
   });
 
+  test('takes axt.Extension as published and checks its rules', () {
+    final host = parseTypeSchema(
+      jsonEncode({
+        'type': 'record',
+        'name': 'Host',
+        'namespace': 'org.example',
+        'fields': [
+          {
+            'name': 'extensions',
+            'type': {
+              'type': 'array',
+              'items': jsonDecode(axtSchema('axt.Extension').jsonText),
+            },
+          },
+        ],
+      }),
+    );
+    Map<String, Object?> extension(List<int> data) => {
+      'extensions': [
+        {'name': 'org.example.A', 'data': Uint8List.fromList(data)},
+      ],
+    };
+    final data = [0xc3, 0x01, 0, 0, 0, 0, 0, 0, 0, 0];
+    expect(decodeRecord(host, null, body(host, extension(data))), isNotNull);
+    expect(
+      () => decodeRecord(host, null, body(host, extension(data.sublist(2)))),
+      throwsA(
+        isA<AxtException>().having(
+          (e) => e.field,
+          'field',
+          'extensions[0].data',
+        ),
+      ),
+    );
+  });
+
   test('parseTypeSchema rejects what is no schema', () {
     expect(() => parseTypeSchema('{'), rejectedWith(ErrorCode.doesNotResolve));
     expect(

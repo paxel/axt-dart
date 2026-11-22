@@ -9,6 +9,7 @@ import 'package:avro/avro.dart';
 import 'package:crypto/crypto.dart';
 
 import '../axt_protocol.dart';
+import 'bricks.dart';
 import 'envelope.dart';
 import 'record_decoder.dart';
 import 'zone_rules.dart';
@@ -27,6 +28,7 @@ import 'signing.dart';
 /// answers. A category is listed only once all of its vectors pass.
 const List<String> implementedCategories = [
   'encoding',
+  'bricks',
   'types',
   'time',
   'keys',
@@ -106,6 +108,9 @@ final Map<String, _Operation> _operations = {
   'decode_body': _decodeBody,
   'encode_message': _encodeMessage,
   'decode_record': _decodeRecord,
+  'derive': _derive,
+  'describe': _describe,
+  'check_record': _checkRecord,
   'resolve_date_time': _resolveDateTime,
   'add_duration': _addDuration,
   'public_key': _publicKey,
@@ -220,6 +225,46 @@ Future<Map<String, Object?>> _decodeRecord(Map<String, Object?> input) async {
     _bytes(input['body']),
   );
   return _accept({'value': _json(value)});
+}
+
+Future<Map<String, Object?>> _derive(Map<String, Object?> input) async {
+  final text = deriveSchema(decodeDescription(_bytes(input['description'])));
+  final schema = Schema.parse(text);
+  return _accept({
+    'schema': text,
+    'canonical_form': schema.canonicalForm,
+    'fingerprint': _hex(crc64ToBytes(schema.crc64)),
+  });
+}
+
+Future<Map<String, Object?>> _describe(Map<String, Object?> input) async {
+  final description = decodeDescription(_bytes(input['description']));
+  validateDescription(description);
+  final languages = input['languages'];
+  if (languages is! List<Object?> || languages.any((l) => l is! String)) {
+    throw const _BadRequest('languages is not a list of strings');
+  }
+  final tags = languages.cast<String>();
+  final path = input['field'];
+  if (path == null) {
+    final root =
+        (description['kind']! as Branch).value! as Map<String, Object?>;
+    return _accept(
+      describeObject(description['texts']! as Map<String, Object?>, root, tags),
+    );
+  }
+  if (path is! String) throw const _BadRequest('field is not a string');
+  final field = fieldAt(description, path);
+  if (field == null) throw _BadRequest('no field $path');
+  return _accept(describeField(field, tags));
+}
+
+Future<Map<String, Object?>> _checkRecord(Map<String, Object?> input) async {
+  checkRecord(
+    decodeDescription(_bytes(input['description'])),
+    _bytes(input['body']),
+  );
+  return _accept(<String, Object?>{});
 }
 
 Map<String, Object?> _object(Map<String, Object?> input, String name) {
