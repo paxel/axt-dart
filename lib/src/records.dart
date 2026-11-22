@@ -370,14 +370,15 @@ Applied? takeKeptRemoval(HeldRecord held) {
 }
 
 /// The top-level fields of [schema] that are lists merged per element: the
-/// lists of extensions.
+/// lists of relations and of extensions.
 Map<String, ElementKey> elementListsOf(Schema schema) => {
   if (schema is RecordSchema)
     for (final field in schema.fields)
-      if (field.schema case ArraySchema(
-        items: RecordSchema(fullName: 'axt.Extension'),
-      ))
-        field.name: ElementKey.name,
+      if (field.schema case ArraySchema(items: RecordSchema(:final fullName)))
+        if (fullName == 'axt.Relation')
+          field.name: ElementKey.id
+        else if (fullName == 'axt.Extension')
+          field.name: ElementKey.name,
 };
 
 /// What a receiver merges per element in a record of [schema], with the

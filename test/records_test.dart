@@ -327,6 +327,49 @@ void main() {
     });
   });
 
+  test('relations merge per element by their id', () {
+    Map<String, Object?> relation(String id, String note) => {
+      'id': id,
+      'kind': 'axt.related',
+      'target': {'uri': 'https://example.org', 'text': ''},
+      'note': note,
+      'start': null,
+      'end': null,
+      'attributes': <String, String>{},
+    };
+    const a = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+    const b = '1f2e3d4c-5b6a-4978-8a96-a5b4c3d2e1f0';
+    final schema = Schema.parse(
+      '{"type":"record","name":"R","namespace":"a","fields":[{"name":'
+      '"links","type":{"type":"array","items":${axtSchema('axt.Relation').jsonText}}}]}',
+    );
+    final lists = elementListsOf(schema);
+    expect(lists, {'links': ElementKey.id});
+    final first = data(null, 1, {
+      'links': [relation(a, '')],
+    });
+    final applied = applyRecordMessage(
+      held: first.held,
+      current: {
+        'links': [relation(a, ''), relation(b, 'mine')],
+      },
+      kind: RecordKind.data,
+      version: 2,
+      policy: const RecordPolicy(),
+      type: 'a.Memo',
+      value: {
+        'links': [relation(a, 'theirs')],
+      },
+      elements: ElementMerge(lists: lists),
+    );
+    expect(applied.value!['links'], [
+      relation(a, 'theirs'),
+      relation(b, 'mine'),
+    ]);
+    expect(applied.outcome, Outcome.merged);
+    expect(elementMergeOf(schema, writers: [schema], readers: {}).lists, lists);
+  });
+
   test('the adapter plays a session', () async {
     Future<Map<String, Object?>> run(Object? input) =>
         answer({'id': 'r', 'op': 'apply', 'input': input});

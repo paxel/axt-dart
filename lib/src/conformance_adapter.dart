@@ -716,20 +716,24 @@ Object? _extensionBytes(Object? value) => switch (value) {
   _ => value,
 };
 
-/// The lists of [values] merged per element: those that hold extensions.
+/// The key of [element] when it is an element of a list merged per
+/// element: a relation or an extension.
+ElementKey? _elementKeyOf(Object? element) => switch (element) {
+  {'id': String(), 'target': Map()} => ElementKey.id,
+  {'name': String(), 'data': Uint8List()} when (element as Map).length == 2 =>
+    ElementKey.name,
+  _ => null,
+};
+
+/// The lists of [values] merged per element: those that hold relations or
+/// extensions.
 Map<String, ElementKey> _elementLists(List<Map<String, Object?>?> values) => {
   for (final value in values)
     if (value != null)
       for (final MapEntry(:key, value: field) in value.entries)
-        if (field is List<Object?> &&
-            field.any(
-              (e) =>
-                  e is Map<String, Object?> &&
-                  e.length == 2 &&
-                  e['name'] is String &&
-                  e['data'] is Uint8List,
-            ))
-          key: ElementKey.name,
+        if (field is List<Object?>)
+          for (final element in field)
+            if (_elementKeyOf(element) case final ElementKey k) key: k,
 };
 
 /// One receiver and the records of one sender, starting empty (records.md,
