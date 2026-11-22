@@ -29,7 +29,7 @@ void main() {
       {
         'id': 'hello',
         'output': {
-          'name': 'axt_protocol (AXT 0.1.0)',
+          'name': 'axt_protocol (AXT 0.2.0)',
           'categories': implementedCategories,
         },
       },

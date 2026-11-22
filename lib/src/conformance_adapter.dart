@@ -308,6 +308,7 @@ String _hex(List<int> bytes) {
 /// A decoded Avro value in the JSON form of `spec/conformance.md`, section 3.3.
 Object? _json(Object? value) => switch (value) {
   Uint8List() => _hex(value),
+  Branch(:final name, :final value) => {name: _json(value)},
   Map<String, Object?>() => {
     for (final entry in value.entries) entry.key: _json(entry.value),
   },

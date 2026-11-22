@@ -5,8 +5,8 @@
 # uv, python3 >= 3.11 and dart.
 set -euo pipefail
 
-AXT_VERSION=0.1.0
-AXT_SHA256=3f878496c5e762d583071724378e9b7d09b1b664073bb9f63e0df7d840cf4212
+AXT_VERSION=0.2.0
+AXT_SHA256=76a4a77a8ba7f2b31a3c59481b8e2dd67cbeb0fad03448461bde6e0429c6c0c7
 BASE=https://github.com/paxel/axt/releases/download/v$AXT_VERSION
 ARCHIVE=axt-$AXT_VERSION.tar.gz
 BUNDLE=axt-v$AXT_VERSION-provenance.sigstore.json
