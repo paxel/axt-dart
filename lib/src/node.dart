@@ -512,10 +512,12 @@ final class AxtNode {
     Map<String, Object?>? value,
     Schema? schema,
   ) async {
+    // A record that stays, read with no schema here, keeps what is kept.
+    if (value != null && schema == null) return;
     final key = 'relations/$sender/$id';
-    final relations = value == null || schema == null
+    final relations = value == null
         ? const <Map<String, Object?>>[]
-        : recordTargets(schema, value);
+        : recordTargets(schema!, value);
     if (relations.isEmpty) {
       await _store.delete(key);
     } else {

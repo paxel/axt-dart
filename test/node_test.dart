@@ -573,6 +573,46 @@ void relationTests() {
     },
   );
 
+  test('a record kept against a withdrawal keeps its relations', () async {
+    final sender = await AxtNode.open(
+      store: MemoryStore(),
+      signingSeed: a.seed,
+      manifest: manifestOfNotes('A'),
+    );
+    final reader = await AxtNode.open(
+      store: MemoryStore(),
+      signingSeed: b.seed,
+      manifest: manifestOfNotes('B'),
+    );
+    final first = newRecordId();
+    final second = newRecordId();
+    const r1 = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+    final held = <String, Map<String, Object?>?>{};
+    Future<FileResult> read(Uint8List file) async => reader.apply(
+      await reader.inspect(file),
+      acceptSender: true,
+      onRecord: (change) async => held[change.id] = change.value,
+      currentValue: (_, id) async => held[id],
+    );
+    await read(
+      await sender.writeFile([
+        OutgoingRecord(first, note, {'text': 'first', 'links': <Object?>[]}),
+        OutgoingRecord(second, note, {
+          'text': 'second',
+          'links': [relation(r1, recordTarget(first, null))],
+        }),
+      ], receiver: b.public),
+    );
+    held[first] = {...held[first]!, 'text': 'mine'};
+    held[second] = {...held[second]!, 'text': 'mine'};
+    // Withdrawals alone: the file holds no schema of the type.
+    final kept = await read(await sender.writeFile([], receiver: b.public));
+    expect(kept.records.map((r) => r.result), ['KEPT', 'KEPT']);
+    expect(await reader.linkedFrom(a.hex, first), [
+      (holder: RecordAddress(a.hex, second), relation: r1),
+    ]);
+  });
+
   test(
     'links go along only with a share that lets them, or to the own user',
     () async {
