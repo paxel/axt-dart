@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - Passes the conformance category `bricks`: descriptions of types are validated, their schemas derived, and record values checked against them, including relations and extensions ([axtdrt-1015](https://github.com/paxel/axt-dart/issues/18)).
+- Relations resolve across senders: `AxtNode.resolve` finds the record a relation points at, also of another sender or of the app itself, following the senders' device sets and joins, and `AxtNode.linkedFrom` lists the relations that point at a record ([axtdrt-1017](https://github.com/paxel/axt-dart/issues/20)).
 
 ### Changed
 

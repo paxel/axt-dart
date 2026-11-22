@@ -119,11 +119,12 @@ Object? decodeRecord(
   Uint8List body, {
   bool check = true,
 }) {
-  checkAxtNames(writer);
-  if (reader != null) {
-    checkAxtNames(reader);
-    _checkTypeNames(writer, reader);
-  }
+  // The value is read in the form of the reader: a writer may define the
+  // published types without their defaulted fields (types.md, section 7.3),
+  // which resolution fills in. An offered writer is checked on its own
+  // (protocol.md, section 5.2).
+  checkAxtNames(reader ?? writer);
+  if (reader != null) _checkTypeNames(writer, reader);
   final SingleObjectHeader header;
   try {
     header = SingleObjectHeader.parse(body);

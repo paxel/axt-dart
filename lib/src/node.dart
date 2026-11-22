@@ -17,7 +17,9 @@ import 'envelope.dart';
 import 'errors.dart';
 import 'file_reader.dart';
 import 'manifest.dart';
+import 'record_decoder.dart' show parseTypeSchema;
 import 'records.dart';
+import 'relation_index.dart';
 import 'signing.dart';
 import 'type_description.dart';
 
@@ -132,6 +134,32 @@ final class FileResult {
   /// One entry for each record message of the file, in its order.
   final List<FileRecordResult> records;
 }
+
+/// A record of a sender, or of the app itself, by the sender's name as
+/// [RecordChange.sender] gives it, or the app's own key as hexadecimal text,
+/// and the record's id.
+final class RecordAddress {
+  const RecordAddress(this.sender, this.id);
+
+  final String sender;
+
+  /// The id, in lower case.
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecordAddress && other.sender == sender && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(sender, id);
+
+  @override
+  String toString() => '$sender/$id';
+}
+
+/// A relation that points at a record: the record that holds it, and the
+/// relation's id.
+typedef Link = ({RecordAddress holder, String relation});
 
 final Random _random = Random.secure();
 
@@ -261,10 +289,18 @@ final class AxtNode {
         ),
       );
     }
-    return DeviceSetReceiver(senders: senders);
+    final receiver = DeviceSetReceiver(senders: senders);
+    final joined = await _store.read('joined');
+    if (joined != null) {
+      receiver.joinedInto.addAll(
+        (_decode(joined)! as Map<String, Object?>).cast<String, String>(),
+      );
+    }
+    return receiver;
   }
 
   Future<void> _saveSenders(DeviceSetReceiver receiver) async {
+    await _store.write('joined', _encode(receiver.joinedInto));
     for (final key in await _store.list('sender/')) {
       await _store.delete(key);
     }
@@ -423,6 +459,7 @@ final class AxtNode {
           'taken': applied.held.taken,
         }),
       );
+      await _index(sender, id, applied.value, _decodedSchema(file, applied));
       if (applied.outcome == Outcome.applied ||
           applied.outcome == Outcome.merged ||
           applied.outcome == Outcome.withdrawn) {
@@ -439,6 +476,122 @@ final class AxtNode {
     }
     return FileResult(true, results);
   });
+
+  /// The schema a received record was decoded with: the reader's, or the
+  /// writer's.
+  Schema? _decodedSchema(CheckedFile file, Applied applied) {
+    final type = applied.held.type;
+    final reader = type == null ? null : _readers[type];
+    if (reader != null) return parseTypeSchema(reader);
+    for (final writer in file.schemas.values) {
+      if (writer.name == type) return writer.schema;
+    }
+    return null;
+  }
+
+  /// Keeps the relations with a record target of the record [id] of
+  /// [sender], whose [value] has [schema]; none for a record that is gone.
+  Future<void> _index(
+    String sender,
+    String id,
+    Map<String, Object?>? value,
+    Schema? schema,
+  ) async {
+    final key = 'relations/$sender/$id';
+    final relations = value == null || schema == null
+        ? const <Map<String, Object?>>[]
+        : recordTargets(schema, value);
+    if (relations.isEmpty) {
+      await _store.delete(key);
+    } else {
+      await _store.write(key, _encode(relations));
+    }
+  }
+
+  Future<(RelationResolver, List<HeldRelation>)> _resolver() async {
+    final receiver = await _receiver();
+    final ownName = _hex(publicKey);
+    final own = KnownSender(ownName, current: {ownName});
+    final emptyBody = _hex(crypto.sha256.convert(const <int>[]).bytes);
+    for (final key in await _store.list('own/')) {
+      final json = _decode((await _store.read(key))!)! as Map<String, Object?>;
+      own.records[key.substring(4)] = KeptRecord(
+        json['version']! as int,
+        json['digest'] == emptyBody ? RecordState.tombstone : RecordState.there,
+      );
+    }
+    for (final key in await _store.list('record/')) {
+      final cut = key.lastIndexOf('/');
+      final name = receiver.senderNamed(key.substring(7, cut));
+      final sender = receiver.senders.where((s) => s.name == name).firstOrNull;
+      if (sender == null) continue;
+      final json = _decode((await _store.read(key))!)! as Map<String, Object?>;
+      final kept = KeptRecord(
+        json['version']! as int,
+        json['state'] == HeldState.there.name
+            ? RecordState.there
+            : RecordState.tombstone,
+      );
+      final id = key.substring(cut + 1);
+      if ((sender.records[id]?.version ?? 0) < kept.version) {
+        sender.records[id] = kept;
+      }
+    }
+    final held = <HeldRelation>[];
+    for (final key in await _store.list('relations/')) {
+      final cut = key.lastIndexOf('/');
+      final holder = key.substring(10, cut);
+      for (final r
+          in (_decode((await _store.read(key))!)! as List<Object?>)
+              .cast<Map<String, Object?>>()) {
+        held.add((
+          id: r['id']! as String,
+          holderSender: holder,
+          holderId: key.substring(cut + 1),
+          targetSender: r['sender'] as String?,
+          targetId: r['target']! as String,
+        ));
+      }
+    }
+    return (RelationResolver(receiver, own), held);
+  }
+
+  /// The record that a relation of the record of [holderSender] points at,
+  /// with [target] the relation's `target` as the record's value holds it;
+  /// null while it does not resolve (`spec/records.md`, section 10.2).
+  Future<RecordAddress?> resolve(
+    String holderSender,
+    Map<String, Object?> target,
+  ) async {
+    final id = target['id'];
+    if (id is! String) return null;
+    final sender = target['sender'];
+    final (resolver, _) = await _resolver();
+    final resolution = resolver.resolve((
+      id: '',
+      holderSender: holderSender,
+      holderId: '',
+      targetSender: sender is Uint8List ? _hex(sender) : null,
+      targetId: id,
+    ));
+    return resolution.resolved
+        ? RecordAddress(resolution.sender!, recordKey(id))
+        : null;
+  }
+
+  /// The relations of the records the app holds, of every sender and its
+  /// own, that resolve to the record [id] of [sender] (section 10.1).
+  Future<List<Link>> linkedFrom(String sender, String id) async {
+    final (resolver, held) = await _resolver();
+    final key = recordKey(id);
+    final name = resolver.receiver.senderNamed(sender);
+    return [
+      for (final linked in resolver.linkedFrom(held))
+        if (linked.sender == name && linked.id == key)
+          for (final f in linked.from)
+            (holder: RecordAddress(f.sender, f.id), relation: f.relation),
+    ];
+  }
 
   Future<int> _stamp() async {
     final stored = await _store.read('stamp');
@@ -523,6 +676,7 @@ final class AxtNode {
         schemas[type.fingerprint] = type;
         body = AvroCodec(writer: type.schema).encodeSingleObject(value);
       }
+      await _index(_hex(publicKey), id, value, record.type?.schema);
       final digest = _hex(crypto.sha256.convert(body).bytes);
       var version = await _versionOf(id, digest);
       final withdrawal = to == null

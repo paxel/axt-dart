@@ -151,6 +151,26 @@ final class DeviceSetReceiver {
   /// The receiver's refused keys (section 3.4).
   final Set<String> refused;
 
+  /// The senders that joined another, by name: the name of the one that
+  /// stays.
+  final Map<String, String> joinedInto = {};
+
+  /// The sender of [name] now: the one it joined, or itself.
+  String senderNamed(String name) {
+    var current = name;
+    for (
+      var next = joinedInto[current];
+      next != null;
+      next = joinedInto[next]
+    ) {
+      current = next;
+    }
+    return current;
+  }
+
+  /// The known sender of which [key] is a key, current or removed, or null.
+  KnownSender? senderOf(String key) => _senderOf(key);
+
   KnownSender? _senderOf(String key) {
     for (final sender in senders) {
       if (sender.current.contains(key) || sender.removed.contains(key)) {
@@ -290,6 +310,7 @@ final class DeviceSetReceiver {
       }
     }
     senders.remove(joins);
+    joinedInto[joins.name] = stays.name;
   }
 }
 

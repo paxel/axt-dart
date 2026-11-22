@@ -20,6 +20,7 @@ import 'live_session.dart';
 import 'manifest.dart';
 import 'proposals.dart';
 import 'records.dart';
+import 'relation_index.dart';
 import 'sealing.dart' as sealing;
 import 'shares.dart';
 import 'signing.dart';
@@ -124,6 +125,7 @@ final Map<String, _Operation> _operations = {
   'device_join': _deviceJoin,
   'join_chain': _joinChain,
   'device_sets': _deviceSets,
+  'relations': _relations,
   'padded_length': _paddedLength,
   'seal': _seal,
   'open': _open,
@@ -545,6 +547,67 @@ Future<Map<String, Object?>> _deviceSets(Map<String, Object?> input) async {
     });
   }
   return {'steps': results};
+}
+
+Future<Map<String, Object?>> _relations(Map<String, Object?> input) async {
+  final senders = input['senders'];
+  final relations = input['relations'];
+  final steps = input['steps'];
+  if (senders is! List<Object?> ||
+      relations is! List<Object?> ||
+      steps is! List<Object?>) {
+    throw const _BadRequest('senders, relations and steps must be lists');
+  }
+  final receiver = DeviceSetReceiver(
+    senders: [for (final sender in senders) _knownSender(sender)],
+    refused: _keys(input['refused']),
+  );
+  final resolver = RelationResolver(receiver, _knownSender(input['own']));
+  final held = <HeldRelation>[
+    for (final r in relations.cast<Map<String, Object?>>())
+      (
+        id: _string(r, 'id'),
+        holderSender: _string(_object(r, 'holder'), 'sender'),
+        holderId: _string(_object(r, 'holder'), 'id'),
+        targetSender: _object(r, 'target')['sender'] as String?,
+        targetId: _string(_object(r, 'target'), 'id'),
+      ),
+  ];
+  final results = <Map<String, Object?>>[];
+  for (final step in steps.cast<Map<String, Object?>>()) {
+    if (step.containsKey('chain')) {
+      final outcome = await receiver.receiveChain(_chain(step['chain']));
+      results.add({
+        'results': [for (final result in outcome.results) result.code],
+      });
+      continue;
+    }
+    results.add({
+      'relations': [
+        for (final relation in held)
+          {'id': relation.id, ...resolver.resolveJson(relation)},
+      ],
+      'linked_from': [
+        for (final linked in resolver.linkedFrom(held))
+          {
+            'sender': linked.sender,
+            'id': linked.id,
+            'from': [
+              for (final f in linked.from)
+                {'sender': f.sender, 'id': f.id, 'relation': f.relation},
+            ],
+          },
+      ],
+    });
+  }
+  return {'steps': results};
+}
+
+extension on RelationResolver {
+  Map<String, Object?> resolveJson(HeldRelation relation) {
+    final resolution = resolve(relation);
+    return {'sender': resolution.sender, 'resolved': resolution.resolved};
+  }
 }
 
 Future<Map<String, Object?>> _paddedLength(Map<String, Object?> input) async {

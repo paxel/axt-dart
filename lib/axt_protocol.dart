@@ -12,7 +12,9 @@ export 'src/node.dart'
         AxtStore,
         FilePreview,
         FileResult,
+        Link,
         OutgoingRecord,
+        RecordAddress,
         RecordChange,
         newRecordId;
 export 'src/type_description.dart' show TypeDescription;
