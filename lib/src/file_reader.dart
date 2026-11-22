@@ -305,6 +305,7 @@ Future<List<FileRecordResult>> readFileRecords(
     }
     String? type;
     Map<String, Object?>? value;
+    var elements = const ElementMerge();
     RecordKind kind;
     switch (envelope.kind) {
       case Kind.withdraw:
@@ -334,13 +335,20 @@ Future<List<FileRecordResult>> readFileRecords(
         }
         final readerText = reader.readers[type];
         try {
+          final readerSchema = readerText == null
+              ? null
+              : parseTypeSchema(readerText);
           value =
-              decodeRecord(
-                    writer.schema,
-                    readerText == null ? null : parseTypeSchema(readerText),
-                    envelope.body,
-                  )!
+              decodeRecord(writer.schema, readerSchema, envelope.body)!
                   as Map<String, Object?>;
+          elements = elementMergeOf(
+            readerSchema ?? writer.schema,
+            writers: [for (final t in file.schemas.values) t.schema],
+            readers: {
+              for (final MapEntry(:key, :value) in reader.readers.entries)
+                key: parseTypeSchema(value),
+            },
+          );
         } on AxtException catch (e) {
           results.add(result(e.code.code));
           continue;
@@ -354,6 +362,7 @@ Future<List<FileRecordResult>> readFileRecords(
       policy: policy,
       type: type,
       value: value,
+      elements: elements,
     );
     held[key] = applied.held;
     current[key] = applied.value;

@@ -693,7 +693,43 @@ Map<String, Object?> _step(Applied applied) => {
   'receiver_version': applied.held.version,
   'kept_fields': applied.keptFields,
   'state': applied.held.state.code,
-  'value': applied.value,
+  'value': _json(applied.value),
+};
+
+/// Whether [value] is an extension in the JSON form of the vectors.
+bool _isExtension(Object? value) =>
+    value is Map<String, Object?> &&
+    value.length == 2 &&
+    value['name'] is String &&
+    value['data'] is String;
+
+/// [value] with the data of its extensions as bytes.
+Object? _extensionBytes(Object? value) => switch (value) {
+  final Map<String, Object?> e when _isExtension(e) => {
+    'name': e['name'],
+    'data': _unhex(e['data']! as String),
+  },
+  Map<String, Object?>() => {
+    for (final entry in value.entries) entry.key: _extensionBytes(entry.value),
+  },
+  List<Object?>() => [for (final v in value) _extensionBytes(v)],
+  _ => value,
+};
+
+/// The lists of [values] merged per element: those that hold extensions.
+Map<String, ElementKey> _elementLists(List<Map<String, Object?>?> values) => {
+  for (final value in values)
+    if (value != null)
+      for (final MapEntry(:key, value: field) in value.entries)
+        if (field is List<Object?> &&
+            field.any(
+              (e) =>
+                  e is Map<String, Object?> &&
+                  e.length == 2 &&
+                  e['name'] is String &&
+                  e['data'] is Uint8List,
+            ))
+          key: ElementKey.name,
 };
 
 /// One receiver and the records of one sender, starting empty (records.md,
@@ -705,6 +741,10 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
   final held = <String, HeldRecord>{};
   final current = <String, Map<String, Object?>?>{};
   final steps = <Object?>[];
+  final extensions = [
+    for (final text in _strings(input['extensions'] ?? <Object?>[]))
+      parseTypeSchema(text),
+  ];
   for (final event in events) {
     if (event is! Map<String, Object?>) {
       throw const _BadRequest('an event is no object');
@@ -725,7 +765,7 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
       final key = recordKey(_string(change, 'id'));
       current[key] = {
         ...?current[key],
-        _string(change, 'field'): change['value'],
+        _string(change, 'field'): _extensionBytes(change['value']),
       };
       steps.add(<String, Object?>{});
     } else if (delete is Map<String, Object?>) {
@@ -744,6 +784,8 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
         final key = recordKey(_string(message, 'id'));
         final version = message['version'];
         if (version is! int) throw const _BadRequest('version is no integer');
+        final value =
+            _extensionBytes(message['value']) as Map<String, Object?>?;
         final applied = applyRecordMessage(
           held: held[key],
           current: current[key],
@@ -756,7 +798,12 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
           version: version,
           policy: policy,
           type: message['type'] as String?,
-          value: message['value'] as Map<String, Object?>?,
+          value: value,
+          elements: ElementMerge(
+            lists: _elementLists([value, current[key], held[key]?.taken]),
+            writers: {for (final s in extensions) s.crc64: s},
+            own: {for (final s in extensions) (s as NamedSchema).fullName: s},
+          ),
         );
         held[key] = applied.held;
         current[key] = applied.value;
