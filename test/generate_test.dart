@@ -68,6 +68,13 @@ void main() {
     expect(source, contains('AvroType<Memo>'));
   });
 
+  test('a formatter that cannot run fails', () async {
+    expect(
+      await dartFormat('${dir.path}/x.dart', executable: '${dir.path}/none'),
+      isFalse,
+    );
+  });
+
   test('usage, missing files and invalid descriptions fail', () async {
     expect((await run(['-h'])).$1, 0);
     expect((await run(['x.json'])).$1, 2);

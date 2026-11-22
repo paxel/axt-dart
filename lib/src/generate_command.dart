@@ -86,7 +86,7 @@ Future<int> runGenerate(
     err.writeln('axt_protocol:generate: warning: $warning');
   }
   File(output).writeAsStringSync(library.source);
-  if (!await (format ?? _dartFormat)(output)) {
+  if (!await (format ?? dartFormat)(output)) {
     err.writeln('axt_protocol:generate: $output: dart format failed');
     return 1;
   }
@@ -102,10 +102,20 @@ int _usageError(StringSink err, String message) {
   return 2;
 }
 
-/// Formats [path] with `dart format` of the running Dart.
-Future<bool> _dartFormat(String path) async =>
-    (await Process.run(Platform.resolvedExecutable, [
-      'format',
-      path,
-    ])).exitCode ==
-    0;
+/// Formats [path] with `dart format`: of the running Dart where it is the
+/// `dart` executable, as under `flutter test` it is not, else of the `dart`
+/// on the path, or of [executable]. False where it fails or cannot run.
+Future<bool> dartFormat(String path, {String? executable}) async {
+  final own = Platform.resolvedExecutable;
+  final dart = Platform.isWindows ? 'dart.exe' : 'dart';
+  try {
+    final result = await Process.run(
+      executable ??
+          (own.split(Platform.pathSeparator).last == dart ? own : 'dart'),
+      ['format', path],
+    );
+    return result.exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
