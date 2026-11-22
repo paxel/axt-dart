@@ -15,6 +15,7 @@ export 'src/node.dart'
         OutgoingRecord,
         RecordChange,
         newRecordId;
+export 'src/type_description.dart' show TypeDescription;
 export 'src/records.dart'
     show DeleteWithLocalChanges, LocalChanges, Outcome, RecordPolicy;
 

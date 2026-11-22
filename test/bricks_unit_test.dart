@@ -228,6 +228,91 @@ void main() {
     });
   });
 
+  group('the JSON form', () {
+    Map<String, Object?> json() => {
+      'name': 'root',
+      'doc': 'A type.',
+      'texts': {
+        'label': 'Type',
+        'label_translations': {'de': 'Typ'},
+      },
+      'kind': {
+        'axt.ObjectField': {
+          'name': 'com.example.T',
+          'version': 1,
+          'fields': [
+            {
+              'name': 'data',
+              'doc': 'The data.',
+              'texts': <String, Object?>{},
+              'kind': {
+                'axt.BytesField': {'default': '00ff'},
+              },
+            },
+            {
+              'name': 'share',
+              'doc': 'The share.',
+              'texts': <String, Object?>{},
+              'kind': {
+                'axt.DoubleField': {'default': 1},
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    test('a description goes to its JSON form and back', () {
+      final type = TypeDescription.fromJson(json());
+      expect(type.name, 'com.example.T');
+      expect(
+        descriptionToJson(descriptionFromJson(type.toJson())),
+        type.toJson(),
+      );
+      final kind = type.datum['kind']! as Branch;
+      final fields = (kind.value! as Map)['fields'] as List;
+      expect(
+        ((fields[0] as Map)['kind'] as Branch).value,
+        containsPair('default', Uint8List.fromList([0, 255])),
+      );
+      expect(
+        ((fields[1] as Map)['kind'] as Branch).value,
+        containsPair('default', 1.0),
+      );
+      expect(type.fileEntry['schema'], isA<Map<String, Object?>>());
+      expect(type.fingerprint, type.schema.crc64);
+    });
+
+    test('JSON that is not the form is not a valid description', () {
+      Object? kind(Object? brick) => {...json(), 'kind': brick};
+      for (final bad in <Object?>[
+        'x',
+        {...json()}..remove('doc'),
+        kind({'axt.Nope': <String, Object?>{}}),
+        kind({
+          'axt.ObjectField': <String, Object?>{},
+          'axt.StringField': <String, Object?>{},
+        }),
+        {...json(), 'doc': 1},
+        {...json(), 'order': 'x'},
+      ]) {
+        expect(() => descriptionFromJson(bad), invalid(), reason: '$bad');
+      }
+      final badHex = json();
+      final fields =
+          ((badHex['kind']! as Map)['axt.ObjectField']! as Map)['fields']!
+              as List;
+      (fields[0] as Map)['kind'] = {
+        'axt.BytesField': {'default': 'FF'},
+      };
+      expect(() => descriptionFromJson(badHex), invalid());
+      expect(
+        () => TypeDescription.fromJson({...json(), 'doc': ''}),
+        invalid('doc'),
+      );
+    });
+  });
+
   group('describe', () {
     test('fields with an order come first, by their order', () {
       final shown = describeObject(

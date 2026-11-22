@@ -2,21 +2,45 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:avro/avro.dart';
+import 'package:axt_protocol/src/bricks.dart';
 import 'package:axt_protocol/src/conformance_adapter.dart';
 import 'package:axt_protocol/src/ed25519.dart';
 import 'package:axt_protocol/src/envelope.dart';
 import 'package:axt_protocol/src/live_session.dart';
 import 'package:axt_protocol/src/records.dart';
 import 'package:axt_protocol/src/signing.dart';
-import 'package:test/test.dart';
+import 'package:test/test.dart' hide Description;
 
 import 'key_fixtures.dart';
 
-const memo =
-    '{"type":"record","name":"Memo","namespace":"org.example",'
-    '"fields":[{"name":"text","type":"string"}]}';
+/// A description of [name] with one required text [field].
+Description describe(String name, {String field = 'text'}) =>
+    descriptionFromJson({
+      'name': 'root',
+      'doc': 'A type.',
+      'texts': <String, Object?>{},
+      'kind': {
+        'axt.ObjectField': {
+          'name': name,
+          'version': 1,
+          'fields': [
+            {
+              'name': field,
+              'doc': 'The text.',
+              'texts': <String, Object?>{},
+              'required': true,
+              'kind': {'axt.StringField': <String, Object?>{}},
+            },
+          ],
+        },
+      },
+    });
 
-final Schema memoSchema = Schema.parse(memo);
+final Description memo = describe('org.example.Memo');
+
+final String memoText = deriveSchema(memo);
+
+final Schema memoSchema = Schema.parse(memoText);
 
 Uint8List manifestBody(
   String name, {
@@ -107,7 +131,7 @@ void main() {
         'to': b.public,
         'offer_id': offerId,
         'types': [
-          {'schema': memo, 'count': 1},
+          {'description': memo, 'count': 1},
         ],
       }),
     );
@@ -258,34 +282,37 @@ void main() {
     expect(await offer([]), 'OFFER_INVALID');
     expect(
       await offer([
-        {'schema': memo, 'count': -1},
+        {'description': memo, 'count': -1},
       ]),
       'OFFER_INVALID',
     );
     expect(
       await offer([
-        {'schema': '{', 'count': 0},
+        {
+          'description': {
+            ...memo,
+            'kind': const Branch('axt.StringField', <String, Object?>{
+              'default': null,
+              'min_length': null,
+              'max_length': null,
+              'pattern': null,
+              'multiline': false,
+              'preferred_length': null,
+              'placeholder': '',
+              'example': '',
+            }),
+          },
+          'count': 0,
+        },
       ]),
       'OFFER_INVALID',
     );
     expect(
       await offer([
-        {'schema': '"int"', 'count': 0},
+        {'description': memo, 'count': 0},
+        {'description': memo, 'count': 0},
       ]),
       'OFFER_INVALID',
-    );
-    expect(
-      await offer([
-        {'schema': memo, 'count': 0},
-        {'schema': memo, 'count': 0},
-      ]),
-      'OFFER_INVALID',
-    );
-    expect(
-      await offer([
-        {'schema': ' ' * (maxSchemaBytes + 1), 'count': 0},
-      ]),
-      'TOO_LARGE',
     );
     final declined = await app.receive(
       await signed(
@@ -295,9 +322,10 @@ void main() {
           'to': b.public,
           'offer_id': offerId,
           'types': [
-            {'schema': memo, 'count': 0},
+            {'description': memo, 'count': 0},
+            {'description': describe('org.example.Other'), 'count': 0},
             {
-              'schema': '{"type":"record","name":"Other","namespace":"org.example","fields":[]}',
+              'description': describe('org.example.Bad', field: 'Bad'),
               'count': 0,
             },
           ],
@@ -305,6 +333,12 @@ void main() {
       ),
     );
     expect(decoded(declined.replies.single)['kind'], 'DECLINE');
+    expect(
+      (decoded(declined.replies.single)['types']! as List).map(
+        (t) => (t as Map)['reason'],
+      ),
+      ['DOES_NOT_RESOLVE', 'DOES_NOT_FIT', 'DESCRIPTION_INVALID'],
+    );
     expect(await code(data), 'NOT_ACCEPTED');
     expect(
       await code(
@@ -402,7 +436,7 @@ void main() {
           .replies,
       isEmpty,
     );
-    final offer = await app.offer(offerId, [(schema: memo, count: 1)]);
+    final offer = await app.offer(offerId, [(description: memo, count: 1)]);
     expect(decoded(offer)['kind'], 'OFFER');
     expect(app.accepted('org.example.Memo'), isFalse);
     Future<Received> receive(
@@ -640,7 +674,7 @@ void main() {
                   'offer': {
                     'offer_id': offerId,
                     'types': [
-                      {'schema': memo, 'count': 0},
+                      {'description': descriptionToJson(memo), 'count': 0},
                     ],
                   },
                 },
@@ -725,8 +759,7 @@ void main() {
   });
 
   test('records under accepted offers that fail later steps', () async {
-    const other =
-        '{"type":"record","name":"Other","namespace":"org.example","fields":[]}';
+    final other = describe('org.example.Other', field: 'other');
     final app = await LiveApp.open(
       seed: b.seed,
       manifestBody: AvroCodec(writer: axtSchema('axt.Manifest'))
@@ -745,7 +778,7 @@ void main() {
             'relay': null,
           }),
       formats: const [1],
-      readers: const {'org.example.Memo': memo},
+      readers: {'org.example.Memo': memoText},
       userTakes: const {'org.example.Memo', 'org.example.Other'},
       peer: a.public,
     );
@@ -758,8 +791,8 @@ void main() {
           'to': b.public,
           'offer_id': offerId,
           'types': [
-            {'schema': memo, 'count': 0},
-            {'schema': other, 'count': 0},
+            {'description': memo, 'count': 0},
+            {'description': other, 'count': 0},
           ],
         }),
       ),
@@ -788,8 +821,8 @@ void main() {
       'UNDECODABLE',
     );
     expect(await code(good), isNull);
-    final otherBody = AvroCodec(writer: Schema.parse(other))
-        .encodeSingleObject(<String, Object?>{});
+    final otherBody = AvroCodec(writer: Schema.parse(deriveSchema(other)))
+        .encodeSingleObject({'other': 'x'});
     expect(await code(otherBody, ref: const RecordRef(id, 2)), 'TYPE_CHANGED');
   });
 
@@ -798,7 +831,7 @@ void main() {
     () async {
       final app = await appOf(a, b);
       await app.receive(await signed(b, Kind.manifest, manifestBody('b')));
-      await app.offer(offerId, [(schema: memo, count: 0)]);
+      await app.offer(offerId, [(description: memo, count: 0)]);
       await app.receive(
         await signed(
           b,
@@ -820,7 +853,7 @@ void main() {
           'to': b.public,
           'offer_id': offerId,
           'types': [
-            {'schema': memo, 'count': 0},
+            {'description': memo, 'count': 0},
           ],
         }),
       );

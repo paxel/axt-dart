@@ -11,20 +11,19 @@ import 'package:crypto/crypto.dart' as crypto;
 
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
+import 'bricks.dart' show Description;
 import 'envelope.dart';
 import 'errors.dart';
 import 'manifest.dart';
 import 'record_decoder.dart';
 import 'records.dart';
 import 'signing.dart';
+import 'type_description.dart';
 
 String _hex(List<int> bytes) =>
     [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')].join();
 
 bool _same(List<int> a, List<int> b) => _hex(a) == _hex(b);
-
-/// The largest schema text of an offer (envelope.md, section 8).
-const int maxSchemaBytes = 262144;
 
 /// The answer of a `receive` step.
 final class Received {
@@ -365,59 +364,64 @@ final class LiveApp {
     if (types.isEmpty || types.length > 256) {
       throw _Rejected(ErrorCode.offerInvalid);
     }
-    final parsed = <({String name, RecordSchema schema, String text})>[];
+    // A description that is not valid is declined, not the offer (4.2).
+    final parsed = <({String name, TypeDescription? type})>[];
     for (final entry in types.cast<Map<String, Object?>>()) {
-      final text = entry['schema']! as String;
-      if (utf8.encode(text).length > maxSchemaBytes) {
-        throw _Rejected(ErrorCode.tooLarge);
-      }
       if ((entry['count']! as int) < 0) throw _Rejected(ErrorCode.offerInvalid);
-      final Schema parsedSchema;
+      final description = entry['description']! as Description;
+      final kind = description['kind']! as Branch;
+      if (kind.name != 'axt.ObjectField') {
+        throw _Rejected(ErrorCode.offerInvalid);
+      }
+      final name = (kind.value! as Map<String, Object?>)['name']! as String;
+      TypeDescription? type;
       try {
-        parsedSchema = parseTypeSchema(text);
+        type = TypeDescription.of(description);
       } on AxtException {
+        type = null;
+      }
+      // The full name is in the Parsing Canonical Form, so two types of
+      // one fingerprint have one name as well.
+      if (parsed.any((p) => p.name == name)) {
         throw _Rejected(ErrorCode.offerInvalid);
       }
-      if (parsedSchema is! RecordSchema) {
-        throw _Rejected(ErrorCode.offerInvalid);
-      }
-      final schema = parsedSchema;
-      if (parsed.any(
-        (p) => p.name == schema.fullName || p.schema.crc64 == schema.crc64,
-      )) {
-        throw _Rejected(ErrorCode.offerInvalid);
-      }
-      parsed.add((name: schema.fullName, schema: schema, text: text));
+      parsed.add((name: name, type: type));
     }
     final answers = <String, String>{};
-    for (final type in parsed) {
+    for (final (:name, :type) in parsed) {
       String answer;
-      if (!fit(_manifest, type.text, const []).fits) {
+      if (type == null) {
+        answer = 'DESCRIPTION_INVALID';
+      } else if (!fit(_manifest, type.schemaText, const []).fits) {
         answer = 'DOES_NOT_FIT';
       } else {
         try {
           checkAxtNames(type.schema);
-          final reader = _readers[type.name];
+          final reader = _readers[name];
           if (reader != null) {
             // The reader is the one of the offered full name, so only the
             // resolution itself can fail here.
             AvroCodec(writer: type.schema, reader: parseTypeSchema(reader));
           }
-          answer = _userTakes.contains(type.name) ? 'ACCEPT' : 'NOT_WANTED';
+          answer = _userTakes.contains(name) ? 'ACCEPT' : 'NOT_WANTED';
         } on AxtException {
           answer = 'DOES_NOT_RESOLVE';
         } on ResolutionException {
           answer = 'DOES_NOT_RESOLVE';
         }
       }
-      answers[type.name] = answer;
-      _current[type.name] = _Current(
-        offerId,
-        type.name,
-        type.schema,
-        type.text,
-        accepted: answer == 'ACCEPT',
-      );
+      answers[name] = answer;
+      if (type != null) {
+        _current[name] = _Current(
+          offerId,
+          name,
+          type.schema,
+          type.schemaText,
+          accepted: answer == 'ACCEPT',
+        );
+      } else {
+        _current.remove(name);
+      }
     }
     _peerOffers[offerId] = _PeerOffer(offerId, answers);
     return Received(replies: await _answer(offerId, answers));
@@ -674,16 +678,18 @@ final class LiveApp {
     return (entries, [ack]);
   }
 
-  /// Offers [schemas] with their counts under [offerId].
+  /// Offers the types of [descriptions] with their counts under [offerId],
+  /// the descriptions as given.
   Future<Uint8List> offer(
     String offerId,
-    List<({String schema, int count})> types,
+    List<({Description description, int count})> types,
   ) async {
     _madeOffers.add(offerId);
     final names = <String>{};
     for (final type in types) {
-      final schema = parseTypeSchema(type.schema);
-      final name = (schema as NamedSchema).fullName;
+      final root =
+          (type.description['kind']! as Branch).value! as Map<String, Object?>;
+      final name = root['name']! as String;
       names.add(name);
       _ownOffers[name] = (offerId: offerId, answers: {});
     }
@@ -692,7 +698,8 @@ final class LiveApp {
       'to': peer,
       'offer_id': offerId,
       'types': [
-        for (final type in types) {'schema': type.schema, 'count': type.count},
+        for (final type in types)
+          {'description': type.description, 'count': type.count},
       ],
     });
   }

@@ -41,9 +41,27 @@ final class MemoryStore implements AxtStore {
   }
 }
 
-const memo =
-    '{"type":"record","name":"Memo","namespace":"org.example","axt.version":1,'
-    '"fields":[{"name":"text","type":"string"},{"name":"note","type":"string"}]}';
+Map<String, Object?> textField(String name) => {
+  'name': name,
+  'doc': 'The $name.',
+  'texts': <String, Object?>{},
+  'required': true,
+  'kind': {'axt.StringField': <String, Object?>{}},
+};
+
+/// org.example.Memo, of two required texts.
+final TypeDescription memo = TypeDescription.fromJson({
+  'name': 'memo',
+  'doc': 'A memo.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Memo',
+      'version': 1,
+      'fields': [textField('text'), textField('note')],
+    },
+  },
+});
 
 Map<String, Object?> manifest(String name, {bool takesMemo = true}) => {
   'app_name': name,
@@ -84,7 +102,7 @@ void main() {
       store: readerStore,
       signingSeed: b.seed,
       manifest: manifest('Reader'),
-      readers: {'org.example.Memo': memo},
+      readers: [memo],
     );
     expect(sender.shortFingerprintOfOwnKey, hasLength(29));
     final id = newRecordId();
@@ -271,9 +289,27 @@ void main() {
   });
 }
 
-const blob =
-    '{"type":"record","name":"Blob","namespace":"org.example",'
-    '"fields":[{"name":"data","type":"bytes"}]}';
+/// org.example.Blob, of required bytes.
+final TypeDescription blob = TypeDescription.fromJson({
+  'name': 'blob',
+  'doc': 'A blob.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Blob',
+      'version': 1,
+      'fields': [
+        {
+          'name': 'data',
+          'doc': 'The data.',
+          'texts': <String, Object?>{},
+          'required': true,
+          'kind': {'axt.BytesField': <String, Object?>{}},
+        },
+      ],
+    },
+  },
+});
 
 void moreTests() {
   late TestKey a, b;

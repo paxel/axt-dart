@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:axt_protocol/src/conformance_adapter.dart';
@@ -51,6 +52,37 @@ void main() {
       'id': 'v',
       'unsupported': true,
     });
+  });
+
+  test('describe fails for languages or a field of the wrong form', () async {
+    final vectors =
+        (jsonDecode(File('test/vectors/bricks.json').readAsStringSync())
+                as Map<String, Object?>)['vectors']!
+            as List<Object?>;
+    final description =
+        ((vectors.cast<Map<String, Object?>>().firstWhere(
+              (v) => v['op'] == 'describe',
+            ))['input']!
+            as Map)['description'];
+    for (final input in [
+      {'description': description, 'field': null, 'languages': 'en'},
+      {
+        'description': description,
+        'field': 1,
+        'languages': ['en'],
+      },
+      {
+        'description': description,
+        'field': 'nope',
+        'languages': ['en'],
+      },
+    ]) {
+      expect(
+        await run('describe', input),
+        containsPair('failure', isA<String>()),
+        reason: '$input',
+      );
+    }
   });
 
   test('a request or an input that is not an object fails', () async {

@@ -39,6 +39,108 @@ Description decodeDescription(Uint8List bytes) {
 Uint8List encodeDescription(Description description) =>
     _fieldCodec.encode(description);
 
+/// A description from its JSON form (fields.md, section 10.3): the branch of
+/// each union as an object of one member named by its full name, bytes as
+/// lower-case hexadecimal.
+///
+/// Throws [AxtException] `DESCRIPTION_INVALID` for JSON that is not a datum
+/// of `axt.Field` in that form.
+Description descriptionFromJson(Object? json) {
+  try {
+    final description =
+        _fromJson(axtRawSchema('axt.Field'), json)! as Description;
+    // The encoder checks every value against its schema.
+    encodeDescription(description);
+    return description;
+  } on _NotTheForm catch (e) {
+    throw AxtException(ErrorCode.descriptionInvalid, e.message);
+  } on AvroException catch (e) {
+    throw AxtException(ErrorCode.descriptionInvalid, e.message);
+  } on TypeError catch (e) {
+    throw AxtException(ErrorCode.descriptionInvalid, '$e');
+  }
+}
+
+final class _NotTheForm implements Exception {
+  const _NotTheForm(this.message);
+  final String message;
+}
+
+final RegExp _lowerHex = RegExp(r'^([0-9a-f]{2})*$');
+
+/// The datum of [json] for [schema]; a cast that fails throws a [TypeError].
+Object? _fromJson(Schema schema, Object? json) => switch (schema) {
+  RecordSchema(:final fields) => _record(
+    fields,
+    json! as Map<Object?, Object?>,
+  ),
+  ArraySchema(:final items) => [
+    for (final v in json! as List) _fromJson(items, v),
+  ],
+  MapSchema(:final values) => <String, Object?>{
+    for (final e in (json! as Map).entries)
+      e.key as String: _fromJson(values, e.value),
+  },
+  UnionSchema() when json == null => null,
+  // A union of null and one unnamed type: the value as it is.
+  UnionSchema(:final branches) when branches.length == 2 => _fromJson(
+    branches.last,
+    json,
+  ),
+  UnionSchema(:final branches) => _branch(
+    branches,
+    json! as Map<Object?, Object?>,
+  ),
+  PrimitiveSchema(type: 'bytes') => _unhex(json! as String),
+  PrimitiveSchema(type: 'double') => (json! as num).toDouble(),
+  _ => json,
+};
+
+Map<String, Object?> _record(List<Field> fields, Map<Object?, Object?> json) =>
+    {
+      for (final f in fields)
+        f.name: json.containsKey(f.name)
+            ? _fromJson(f.schema, json[f.name])
+            : f.hasDefault
+            ? f.defaultValue
+            : throw _NotTheForm('no member ${f.name}'),
+    };
+
+Uint8List _unhex(String text) {
+  if (!_lowerHex.hasMatch(text)) throw const _NotTheForm('not hexadecimal');
+  return Uint8List.fromList([
+    for (var i = 0; i < text.length; i += 2)
+      int.parse(text.substring(i, i + 2), radix: 16),
+  ]);
+}
+
+/// The branch of a brick: an object of one member, named by its full name.
+Branch _branch(List<Schema> branches, Map<Object?, Object?> json) {
+  if (json.length != 1) throw const _NotTheForm('not one brick');
+  final MapEntry(:key, :value) = json.entries.single;
+  final brick = branches
+      .whereType<NamedSchema>()
+      .where((b) => b.fullName == key)
+      .firstOrNull;
+  if (brick == null) throw _NotTheForm('no brick $key');
+  return Branch(key as String, _fromJson(brick, value));
+}
+
+/// [description] in its JSON form (fields.md, section 10.3).
+Object? descriptionToJson(Description description) => _toJson(description);
+
+Object? _toJson(Object? value) => switch (value) {
+  Branch(:final name, :final value) => <String, Object?>{name: _toJson(value)},
+  Uint8List() => [
+    for (final b in value) b.toRadixString(16).padLeft(2, '0'),
+  ].join(),
+  Map() => <String, Object?>{
+    for (final e in value.entries) e.key as String: _toJson(e.value),
+  },
+  List() => <Object?>[for (final v in value) _toJson(v)],
+  _ => value,
+};
+
 AxtException _invalid(String path, String why) =>
     AxtException(ErrorCode.descriptionInvalid, '$path: $why', field: path);
 

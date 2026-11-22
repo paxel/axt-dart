@@ -894,7 +894,10 @@ Future<Map<String, Object?>> _session(Map<String, Object?> input) async {
       if (types is! List<Object?>) throw const _BadRequest('types is no list');
       final message = await app.offer(_string(offer, 'offer_id'), [
         for (final t in types.cast<Map<String, Object?>>())
-          (schema: _string(t, 'schema'), count: t['count']! as int),
+          (
+            description: descriptionFromJson(t['description']),
+            count: t['count']! as int,
+          ),
       ]);
       answers.add({'message': _hex(message)});
     } else if (step.containsKey('close')) {

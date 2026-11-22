@@ -17,9 +17,9 @@ import 'envelope.dart';
 import 'errors.dart';
 import 'file_reader.dart';
 import 'manifest.dart';
-import 'record_decoder.dart';
 import 'records.dart';
 import 'signing.dart';
+import 'type_description.dart';
 
 /// The key-value storage of bytes that the app implements for the library.
 ///
@@ -72,17 +72,18 @@ final class RecordChange {
 
 /// A record of the app's own, as it hands it to the library to send.
 final class OutgoingRecord {
-  /// A record that is there, with its type's schema text and its value.
-  const OutgoingRecord(this.id, this.schema, Map<String, Object?> this.value);
+  /// A record that is there, with its type and its value.
+  const OutgoingRecord(this.id, this.type, Map<String, Object?> this.value);
 
   /// A record its user deleted.
-  const OutgoingRecord.deleted(this.id) : schema = null, value = null;
+  const OutgoingRecord.deleted(this.id) : type = null, value = null;
 
   /// The record's id, a UUID the app keeps beside its entity.
   final String id;
 
-  /// The writer schema, as text; null for a deleted record.
-  final String? schema;
+  /// The record's type, whose derived schema is the writer schema; null for
+  /// a deleted record.
+  final TypeDescription? type;
 
   /// The value; null for a deleted record.
   final Map<String, Object?>? value;
@@ -210,14 +211,15 @@ final class AxtNode {
 
   /// Opens the library on the app's [store], with the seed of the app's
   /// Ed25519 signing key, its own [manifest] content (without `revision`),
-  /// its reader schemas by full name and its [policy] for its user's changes.
+  /// the [readers], its own types by which it reads the records of others,
+  /// and its [policy] for its user's changes.
   ///
   /// The library raises the manifest's revision whenever its content changes.
   static Future<AxtNode> open({
     required AxtStore store,
     required Uint8List signingSeed,
     required Map<String, Object?> manifest,
-    Map<String, String> readers = const {},
+    List<TypeDescription> readers = const [],
     RecordPolicy policy = const RecordPolicy(),
     DateTime Function()? clock,
   }) async {
@@ -227,7 +229,7 @@ final class AxtNode {
       Uint8List.fromList(signingSeed),
       publicKey,
       manifest,
-      readers,
+      {for (final type in readers) type.name: type.schemaText},
       policy,
       clock ?? DateTime.now,
     );
@@ -321,10 +323,8 @@ final class AxtNode {
       final writer =
           checked.schemas[SingleObjectHeader.parse(message.envelope.body)
               .fingerprint]!;
-      if (fit(manifest, writer.text, const []).fits) {
-        final schema = writer.schema;
-        final name = schema is NamedSchema ? schema.fullName : schema.type;
-        fitting[name] = (fitting[name] ?? 0) + 1;
+      if (fit(manifest, writer.schemaText, const []).fits) {
+        fitting[writer.name] = (fitting[writer.name] ?? 0) + 1;
       }
     }
     final state = receiver.stateOf(sender);
@@ -502,7 +502,7 @@ final class AxtNode {
     Uint8List? receiver,
   }) => _store.transaction(() async {
     final datums = <Uint8List>[];
-    final schemas = <int, String>{};
+    final schemas = <int, TypeDescription>{};
     final manifest = AvroCodec(writer: axtSchema('axt.Manifest'))
         .encodeSingleObject(await _revisedManifest());
     datums.add(await _sign(Kind.manifest, null, manifest));
@@ -519,9 +519,9 @@ final class AxtNode {
         body = Uint8List(0);
       } else {
         kind = Kind.data;
-        final schema = parseTypeSchema(record.schema!);
-        schemas[schema.crc64] = record.schema!;
-        body = AvroCodec(writer: schema).encodeSingleObject(value);
+        final type = record.type!;
+        schemas[type.fingerprint] = type;
+        body = AvroCodec(writer: type.schema).encodeSingleObject(value);
       }
       final digest = _hex(crypto.sha256.convert(body).bytes);
       var version = await _versionOf(id, digest);
@@ -579,7 +579,9 @@ final class AxtNode {
     }
     final schemasText = schemas.isEmpty
         ? null
-        : utf8.encode('[${schemas.values.join(',')}]');
+        : utf8.encode(
+            jsonEncode([for (final t in schemas.values) t.fileEntry]),
+          );
     final signature = await ed25519.sign(
       _seed,
       fileHeaderSignedBytes(publicKey, schemasText),
