@@ -32,6 +32,10 @@ tar -xzf "$ARCHIVE" -C suite --strip-components=1
 
 dart compile exe "$root/tool/adapter.dart" -o "$work/adapter"
 
+# The example types ship generated in lib/examples.dart; they are those of the pinned release.
+(cd suite && dart "$root/bin/generate.dart" types/axt/example/v1/*.1.json -o "$work/examples.dart")
+diff -u "$root/lib/examples.dart" "$work/examples.dart"
+
 # The runner fails when the adapter declares no category; until the first category is
 # implemented, the check of the archive and the adapter's hello are the whole job.
 hello=$(echo '{"id": "hello", "op": "hello", "input": {"format": 1}}' | "$work/adapter")

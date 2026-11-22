@@ -24,6 +24,13 @@ checked against its attestation, against the library's own adapter.
 The first release implements the categories every library must implement (`encoding`, `types`,
 `time`, `records`, `manifest`, `keys`, `protocol`, `shares`, `bricks`) and the transport `file`.
 
+## Typed classes
+
+`dart run axt_protocol:generate <description.json...> -o <file>` writes a Dart class for the
+type of each description, in the JSON form of `spec/fields.md`, section 10.3; read and write its
+records with `TypedCodec` of `package:avro`. The eight example types of AXT 0.2.0 ship generated
+in `package:axt_protocol/examples.dart`.
+
 ## Platforms
 
 Native only: the Dart VM and AOT on Android, iOS and desktop. Flutter web is not supported.
