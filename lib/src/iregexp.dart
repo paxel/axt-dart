@@ -1,8 +1,16 @@
-/// I-Regexp (RFC 9485): a parser of its grammar, and its translation to a
-/// Dart [RegExp] (AXT `spec/metadata.md`, section 6.4).
+/// I-Regexp (RFC 9485): a parser of its grammar, and a matcher that runs in
+/// time linear in the value (AXT `spec/metadata.md`, sections 6.4 and 9).
+///
+/// Patterns come from other apps, so they are not run by Dart's [RegExp],
+/// which backtracks and takes time exponential in the value for patterns
+/// such as `(a*)*b`. The pattern becomes a Thompson NFA, simulated one code
+/// point at a time. The NFA's size and the work of one match are bounded;
+/// a match that reaches a bound takes the value as if it kept the pattern,
+/// as section 9 asks.
 library;
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 /// The general categories of Unicode that `\p{…}` may name.
 const Set<String> _categories = {
@@ -15,56 +23,111 @@ const Set<String> _categories = {
   'C', 'Cc', 'Cf', 'Co', 'Cn', //
 };
 
+/// The most states of a pattern's NFA; a larger one, such as of nested
+/// range quantifiers, is not run.
+const int maxStates = 100000;
+
+/// The most work of one match, in states visited.
+const int maxSteps = 2000000;
+
 final class _Invalid implements Exception {
   const _Invalid();
 }
 
-/// Translates an I-Regexp to the expression of a Dart [RegExp] with
-/// `unicode: true`, matching the whole value.
-final class _Parser {
-  _Parser(this.pattern, this.maxQuantifier) : runes = pattern.runes.toList();
+final class _TooLarge implements Exception {
+  const _TooLarge();
+}
 
-  final String pattern;
+/// Whether a code point is in a set of code points.
+typedef _Test = bool Function(int rune);
+
+sealed class _Node {}
+
+final class _Set extends _Node {
+  _Set(this.test);
+  final _Test test;
+}
+
+final class _Seq extends _Node {
+  _Seq(this.nodes);
+  final List<_Node> nodes;
+}
+
+final class _Alt extends _Node {
+  _Alt(this.branches);
+  final List<_Node> branches;
+}
+
+final class _Repeat extends _Node {
+  _Repeat(this.node, this.min, this.max);
+  final _Node node;
+  final int min;
+
+  /// Null for no upper bound.
+  final int? max;
+}
+
+final Map<String, RegExp> _categoryRegExps = {};
+
+/// The test of the general category [name]; of its complement for [negated].
+/// One code point against one category takes constant time.
+_Test _category(String name, {required bool negated}) {
+  final re = _categoryRegExps.putIfAbsent(
+    name,
+    () => RegExp('^\\p{$name}\$', unicode: true),
+  );
+  return negated
+      ? (r) => !re.hasMatch(String.fromCharCode(r))
+      : (r) => re.hasMatch(String.fromCharCode(r));
+}
+
+/// A parser of the grammar of RFC 9485, section 3, to a tree.
+final class _Parser {
+  _Parser(String pattern, this.maxQuantifier) : runes = pattern.runes.toList();
+
   final int maxQuantifier;
   final List<int> runes;
   int i = 0;
-  final StringBuffer out = StringBuffer();
 
   bool get atEnd => i >= runes.length;
   int get peek => runes[i];
 
-  static String lit(int rune) => '\\u{${rune.toRadixString(16)}}';
-
-  void regexp() {
-    branch();
+  _Node regexp() {
+    final branches = [branch()];
     while (!atEnd && peek == 0x7c) {
       i++;
-      out.write('|');
-      branch();
+      branches.add(branch());
     }
+    return branches.length == 1 ? branches.single : _Alt(branches);
   }
 
-  void branch() {
+  _Node branch() {
+    final pieces = <_Node>[];
     while (!atEnd && peek != 0x7c && peek != 0x29) {
-      piece();
+      pieces.add(piece());
     }
+    return _Seq(pieces);
   }
 
-  void piece() {
-    atom();
-    if (atEnd) return;
+  _Node piece() {
+    final node = atom();
+    if (atEnd) return node;
     switch (peek) {
-      case 0x2a || 0x2b || 0x3f: // * + ?
-        out.writeCharCode(peek);
+      case 0x2a: // *
         i++;
+        return _Repeat(node, 0, null);
+      case 0x2b: // +
+        i++;
+        return _Repeat(node, 1, null);
+      case 0x3f: // ?
+        i++;
+        return _Repeat(node, 0, 1);
       case 0x7b: // {
         i++;
         final min = number();
         int? max = min;
-        var open = false;
         if (!atEnd && peek == 0x2c) {
           i++;
-          open = true;
           max = atEnd || peek == 0x7d ? null : number();
         }
         if (atEnd || peek != 0x7d) throw const _Invalid();
@@ -73,8 +136,9 @@ final class _Parser {
             (max != null && (max > maxQuantifier || max < min))) {
           throw const _Invalid();
         }
-        out.write(open ? '{$min,${max ?? ''}}' : '{$min}');
+        return _Repeat(node, min, max);
     }
+    return node;
   }
 
   int number() {
@@ -86,29 +150,27 @@ final class _Parser {
     return int.parse(String.fromCharCodes(runes.sublist(start, i)));
   }
 
-  void atom() {
+  _Node atom() {
     if (atEnd) throw const _Invalid();
     final c = peek;
     switch (c) {
       case 0x28: // (
         i++;
-        out.write('(?:');
-        regexp();
+        final node = regexp();
         if (atEnd || peek != 0x29) throw const _Invalid();
         i++;
-        out.write(')');
+        return node;
       case 0x2e: // .
         i++;
-        out.write(r'[^\n\r]');
+        return _Set((r) => r != 0x0a && r != 0x0d);
       case 0x5b: // [
-        charClassExpr();
+        return charClassExpr();
       case 0x5c: // \
-        out.write(escape(inClass: false));
-      default:
-        if (!_normal(c)) throw const _Invalid();
-        i++;
-        out.write(lit(c));
+        return _Set(escape().test);
     }
+    if (!_normal(c)) throw const _Invalid();
+    i++;
+    return _Set((r) => r == c);
   }
 
   static bool _normal(int c) =>
@@ -126,19 +188,20 @@ final class _Parser {
           c == 0x7d ||
           (c >= 0xd800 && c <= 0xdfff));
 
-  /// A single-character escape as its code point, or a category escape.
-  String escape({required bool inClass}) {
+  /// A single-character escape as its code point, or a category escape as
+  /// its test.
+  ({int? rune, _Test test}) escape() {
     i++; // the backslash
     if (atEnd) throw const _Invalid();
     final c = peek;
     i++;
     switch (c) {
       case 0x6e:
-        return lit(0x0a);
+        return (rune: 0x0a, test: (r) => r == 0x0a);
       case 0x72:
-        return lit(0x0d);
+        return (rune: 0x0d, test: (r) => r == 0x0d);
       case 0x74:
-        return lit(0x09);
+        return (rune: 0x09, test: (r) => r == 0x09);
       case 0x70 || 0x50: // p, P
         if (atEnd || peek != 0x7b) throw const _Invalid();
         i++;
@@ -150,7 +213,7 @@ final class _Parser {
         final name = String.fromCharCodes(runes.sublist(start, i));
         i++;
         if (!_categories.contains(name)) throw const _Invalid();
-        return c == 0x70 ? '\\p{$name}' : '\\P{$name}';
+        return (rune: null, test: _category(name, negated: c == 0x50));
     }
     final single =
         (c >= 0x28 && c <= 0x2b) ||
@@ -160,20 +223,19 @@ final class _Parser {
         (c >= 0x5b && c <= 0x5e) ||
         (c >= 0x7b && c <= 0x7d);
     if (!single) throw const _Invalid();
-    return lit(c);
+    return (rune: c, test: (r) => r == c);
   }
 
+  /// A character of a class as its code point; null for a category escape,
+  /// which is left unread.
   int? _ccChar() {
     if (atEnd) throw const _Invalid();
     final c = peek;
     if (c == 0x5c) {
       final save = i;
-      final escaped = escape(inClass: true);
-      if (escaped.startsWith(r'\p') || escaped.startsWith(r'\P')) {
-        i = save;
-        return null;
-      }
-      return int.parse(escaped.substring(3, escaped.length - 1), radix: 16);
+      final escaped = escape();
+      if (escaped.rune == null) i = save;
+      return escaped.rune;
     }
     if (c == 0x2d || c == 0x5b || c == 0x5d || (c >= 0xd800 && c <= 0xdfff)) {
       throw const _Invalid();
@@ -182,39 +244,34 @@ final class _Parser {
     return c;
   }
 
-  void charClassExpr() {
+  _Node charClassExpr() {
     i++; // [
-    final buffer = StringBuffer('[');
+    var negated = false;
     if (!atEnd && peek == 0x5e) {
       i++;
-      buffer.write('^');
+      negated = true;
     }
-    var first = true;
-    var items = 0;
+    final tests = <_Test>[];
     while (true) {
       if (atEnd) throw const _Invalid();
       final c = peek;
       if (c == 0x5d) {
-        if (items == 0) throw const _Invalid();
+        if (tests.isEmpty) throw const _Invalid();
         i++;
         break;
       }
       if (c == 0x2d) {
         // A '-' is allowed first, or last before ']'.
         final last = i + 1 < runes.length && runes[i + 1] == 0x5d;
-        if (!first && !last) throw const _Invalid();
+        if (tests.isNotEmpty && !last) throw const _Invalid();
         i++;
-        buffer.write(lit(0x2d));
-        items++;
-        first = false;
+        tests.add((r) => r == 0x2d);
         continue;
       }
       if (c == 0x5c &&
           i + 1 < runes.length &&
           (runes[i + 1] == 0x70 || runes[i + 1] == 0x50)) {
-        buffer.write(escape(inClass: true));
-        items++;
-        first = false;
+        tests.add(escape().test);
         continue;
       }
       final from = _ccChar()!;
@@ -226,33 +283,161 @@ final class _Parser {
         if (!atEnd && peek == 0x5b) throw const _Invalid(); // subtraction
         final to = _ccChar();
         if (to == null || to < from) throw const _Invalid();
-        buffer.write('${lit(from)}-${lit(to)}');
+        tests.add((r) => r >= from && r <= to);
       } else {
-        buffer.write(lit(from));
+        tests.add((r) => r == from);
       }
-      items++;
-      first = false;
     }
-    buffer.write(']');
-    out.write(buffer);
+    bool any(int r) {
+      for (final t in tests) {
+        if (t(r)) return true;
+      }
+      return false;
+    }
+
+    return _Set(negated ? (r) => !any(r) : any);
   }
 }
 
-/// The [RegExp] of the I-Regexp [pattern], matching a value as a whole; null
-/// when [pattern] is not an I-Regexp within [maxBytes] and [maxQuantifier].
-RegExp? compileIRegexp(
+const int _char = 0, _split = 1, _match = 2;
+
+/// A Thompson NFA, built from the end: each state is built with the state
+/// it goes on to.
+final class _Builder {
+  final List<int> kinds = [];
+  final List<int> outs = [];
+  final List<int> alts = [];
+  final List<_Test?> tests = [];
+
+  int state(int kind, {int out = -1, int alt = -1, _Test? test}) {
+    if (kinds.length == maxStates) throw const _TooLarge();
+    kinds.add(kind);
+    outs.add(out);
+    alts.add(alt);
+    tests.add(test);
+    return kinds.length - 1;
+  }
+
+  /// The start of [node], followed by [next].
+  int build(_Node node, int next) {
+    switch (node) {
+      case _Set(:final test):
+        return state(_char, out: next, test: test);
+      case _Seq(:final nodes):
+        var start = next;
+        for (final n in nodes.reversed) {
+          start = build(n, start);
+        }
+        return start;
+      case _Alt(:final branches):
+        var start = build(branches.last, next);
+        for (final b in branches.reversed.skip(1)) {
+          start = state(_split, out: build(b, next), alt: start);
+        }
+        return start;
+      case _Repeat(:final node, :final min, :final max):
+        var start = next;
+        if (max == null) {
+          final loop = state(_split, alt: next);
+          outs[loop] = build(node, loop);
+          start = loop;
+        } else {
+          for (var k = min; k < max; k++) {
+            start = state(_split, out: build(node, start), alt: next);
+          }
+        }
+        for (var k = 0; k < min; k++) {
+          start = build(node, start);
+        }
+        return start;
+    }
+  }
+}
+
+/// An I-Regexp, matching a value as a whole.
+final class IRegexp {
+  IRegexp._(_Node node) {
+    final b = _Builder();
+    try {
+      _start = b.build(node, b.state(_match));
+    } on _TooLarge {
+      return;
+    }
+    _kinds = Uint8List.fromList(b.kinds);
+    _outs = Int32List.fromList(b.outs);
+    _alts = Int32List.fromList(b.alts);
+    _tests = b.tests;
+  }
+
+  int _start = -1;
+  Uint8List? _kinds;
+  late final Int32List _outs, _alts;
+  late final List<_Test?> _tests;
+
+  /// Whether [value] as a whole is in the pattern's language. True as well
+  /// where the pattern's NFA is above [maxStates] or the match takes more
+  /// than [maxSteps].
+  bool hasMatch(String value) {
+    final kinds = _kinds;
+    if (kinds == null) return true;
+    final marks = Int32List(kinds.length)..fillRange(0, kinds.length, -1);
+    final stack = <int>[];
+    var current = <int>[], next = <int>[];
+    var steps = 0;
+
+    // Adds [from] and the states it reaches without a code point to [into].
+    bool add(int from, List<int> into, int generation) {
+      stack.add(from);
+      while (stack.isNotEmpty) {
+        final s = stack.removeLast();
+        if (marks[s] == generation) continue;
+        marks[s] = generation;
+        if (++steps > maxSteps) return false;
+        if (kinds[s] == _split) {
+          stack
+            ..add(_alts[s])
+            ..add(_outs[s]);
+        } else {
+          into.add(s);
+        }
+      }
+      return true;
+    }
+
+    if (!add(_start, current, 0)) return true;
+    var generation = 0;
+    for (final rune in value.runes) {
+      generation++;
+      next.clear();
+      for (final s in current) {
+        if (kinds[s] == _char &&
+            _tests[s]!(rune) &&
+            !add(_outs[s], next, generation)) {
+          return true;
+        }
+      }
+      if (next.isEmpty) return false;
+      (current, next) = (next, current);
+    }
+    return current.any((s) => kinds[s] == _match);
+  }
+}
+
+/// The I-Regexp [pattern], matching a value as a whole; null when [pattern]
+/// is not an I-Regexp within [maxBytes] and [maxQuantifier].
+IRegexp? compileIRegexp(
   String pattern, {
   required int maxBytes,
   required int maxQuantifier,
 }) {
   if (utf8.encode(pattern).length > maxBytes) return null;
   final parser = _Parser(pattern, maxQuantifier);
+  final _Node node;
   try {
-    parser.regexp();
+    node = parser.regexp();
     if (!parser.atEnd) return null;
   } on _Invalid {
     return null;
   }
-  // Every literal is written as \u{…}, so the expression is always valid.
-  return RegExp('^(?:${parser.out})\$', unicode: true);
+  return IRegexp._(node);
 }

@@ -586,9 +586,9 @@ void _placeholder(Map<String, Object?> value, String k) {
   }
 }
 
-final Map<String, RegExp?> _patterns = {};
+final Map<String, IRegexp?> _patterns = {};
 
-RegExp? _compile(String pattern) => _patterns.putIfAbsent(
+IRegexp? _compile(String pattern) => _patterns.putIfAbsent(
   pattern,
   () => compileIRegexp(
     pattern,

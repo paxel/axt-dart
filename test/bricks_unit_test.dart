@@ -368,7 +368,7 @@ void main() {
   });
 
   group('I-Regexp', () {
-    RegExp? compile(String pattern) =>
+    IRegexp? compile(String pattern) =>
         compileIRegexp(pattern, maxBytes: 1024, maxQuantifier: 1000);
 
     test('the escapes of line feed, carriage return and tab', () {
@@ -381,6 +381,39 @@ void main() {
 
     test('a pattern above the limit of bytes is not valid', () {
       expect(compileIRegexp('ä', maxBytes: 1, maxQuantifier: 1000), isNull);
+    });
+
+    test(
+      'a pattern that makes a backtracking engine hang runs in linear time',
+      () {
+        final watch = Stopwatch()..start();
+        expect(compile('(a*)*b')!.hasMatch('a' * 5000), isFalse);
+        expect(compile('(a|aa)*c')!.hasMatch('a' * 5000), isFalse);
+        expect(compile('(a*)*b')!.hasMatch('${'a' * 5000}b'), isTrue);
+        expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+      },
+    );
+
+    test('repeats, alternatives and empty loops', () {
+      expect(compile('a{2,3}')!.hasMatch('a'), isFalse);
+      expect(compile('a{2,3}')!.hasMatch('aaa'), isTrue);
+      expect(compile('a{2,3}')!.hasMatch('aaaa'), isFalse);
+      expect(compile('a{2,}')!.hasMatch('aaaaa'), isTrue);
+      expect(compile('a{0}b')!.hasMatch('b'), isTrue);
+      expect(compile('(ab|cd)+e?')!.hasMatch('abcdab'), isTrue);
+      expect(compile('(ab|cd)+e?')!.hasMatch('abc'), isFalse);
+      expect(compile('()*x')!.hasMatch('x'), isTrue);
+      expect(compile('[^a-c\\p{Nd}]')!.hasMatch('d'), isTrue);
+      expect(compile('[^a-c\\p{Nd}]')!.hasMatch('5'), isFalse);
+      expect(compile('\\P{L}.')!.hasMatch('1x'), isTrue);
+      expect(compile('.')!.hasMatch('\n'), isFalse);
+    });
+
+    test('a match that reaches a bound takes the value as kept', () {
+      final nested = compile('((a{1000}){1000}){1000}')!;
+      expect(nested.hasMatch('b'), isTrue);
+      final wide = compile('(a|a?){1000}')!;
+      expect(wide.hasMatch('${'a' * 3000}b'), isTrue);
     });
   });
 
