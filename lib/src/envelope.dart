@@ -225,7 +225,10 @@ Object? decodeBody(Kind kind, Uint8List body) {
   if (name == null) {
     throw ArgumentError.value(kind, 'kind', 'has no body schema');
   }
-  final codec = _bodyCodecs[name] ??= AvroCodec(writer: _rawSchemas[name]!);
+  final codec = _bodyCodecs[name] ??= AvroCodec(
+    writer: _rawSchemas[name]!,
+    decodeBranches: true,
+  );
   try {
     return codec.decodeSingleObject(body);
   } on AvroException catch (e) {

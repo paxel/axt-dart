@@ -13,16 +13,23 @@
 The Dart library of [AXT](https://github.com/paxel/axt) (Avro eXchange Transfer), the open
 standard that lets small, independent apps exchange typed records with each other.
 
-Status: in development, nothing is published yet.
+Status: in development; 0.1.0, for AXT 0.1.0, is on [pub.dev](https://pub.dev/packages/axt_protocol).
 
 ## Conformance
 
-`axt_protocol` conforms to **AXT 0.1.0**. Its CI runs the conformance suite of the
-[AXT 0.1.0 release](https://github.com/paxel/axt/releases/tag/v0.1.0), pinned by its SHA-256 and
+`axt_protocol` conforms to **AXT 0.2.0**. Its CI runs the conformance suite of the
+[AXT 0.2.0 release](https://github.com/paxel/axt/releases/tag/v0.2.0), pinned by its SHA-256 and
 checked against its attestation, against the library's own adapter.
 
 The first release implements the categories every library must implement (`encoding`, `types`,
-`time`, `records`, `manifest`, `keys`, `protocol`, `shares`) and the transport `file`.
+`time`, `records`, `manifest`, `keys`, `protocol`, `shares`, `bricks`) and the transport `file`.
+
+## Typed classes
+
+`dart run axt_protocol:generate <description.json...> -o <file>` writes a Dart class for the
+type of each description, in the JSON form of `spec/fields.md`, section 10.3; read and write its
+records with `TypedCodec` of `package:avro`. The eight example types of AXT 0.2.0 ship generated
+in `package:axt_protocol/examples.dart`.
 
 ## Platforms
 

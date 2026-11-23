@@ -1,6 +1,8 @@
 import 'dart:typed_data';
 
+import 'package:avro/avro.dart';
 import 'package:axt_protocol/src/conformance_adapter.dart';
+import 'package:axt_protocol/src/envelope.dart' show axtSchema;
 import 'package:axt_protocol/src/errors.dart';
 import 'package:axt_protocol/src/records.dart';
 import 'package:test/test.dart';
@@ -185,6 +187,187 @@ void main() {
       removal(gone, 3, kind: RecordKind.withdraw).outcome,
       Outcome.withdrawn,
     );
+  });
+
+  group('extensions merge per element', () {
+    final cat = Schema.parse(
+      '{"type":"record","name":"Cat","namespace":"org.example","fields":['
+      '{"name":"tasso","type":"string"},{"name":"fur","type":"string"}]}',
+    );
+    Map<String, Object?> ext(String name, Map<String, Object?> value) => {
+      'name': name,
+      'data': AvroCodec(writer: cat).encodeSingleObject(value),
+    };
+    Map<String, Object?> unknown(String name, int byte) => {
+      'name': name,
+      'data': Uint8List.fromList([0xc3, 0x01, ...List.filled(8, 0), byte]),
+    };
+    final elements = ElementMerge(
+      lists: elementListsOf(
+        Schema.parse(
+          '{"type":"record","name":"R","namespace":"a","fields":[{"name":'
+          '"extensions","type":{"type":"array","items":${axtSchema('axt.Extension').jsonText}}}]}',
+        ),
+      ),
+      writers: {cat.crc64: cat},
+      own: {'org.example.Cat': cat},
+    );
+    Applied merge(
+      List<Object?> taken,
+      List<Object?> user,
+      List<Object?> message,
+    ) {
+      final first = applyRecordMessage(
+        held: null,
+        current: null,
+        kind: RecordKind.data,
+        version: 1,
+        policy: const RecordPolicy(),
+        type: 'a.R',
+        value: {'extensions': taken},
+      );
+      return applyRecordMessage(
+        held: first.held,
+        current: {'extensions': user},
+        kind: RecordKind.data,
+        version: 2,
+        policy: const RecordPolicy(),
+        type: 'a.R',
+        value: {'extensions': message},
+        elements: elements,
+      );
+    }
+
+    test('a known type merges field by field', () {
+      final applied = merge(
+        [
+          ext('org.example.Cat', {'tasso': '1', 'fur': 'tabby'}),
+        ],
+        [
+          ext('org.example.Cat', {'tasso': '1', 'fur': 'black'}),
+        ],
+        [
+          ext('org.example.Cat', {'tasso': '2', 'fur': 'tabby'}),
+        ],
+      );
+      expect(applied.outcome, Outcome.merged);
+      expect(applied.value!['extensions'], [
+        ext('org.example.Cat', {'tasso': '2', 'fur': 'black'}),
+      ]);
+    });
+
+    test('a type it does not know stays whole; added and removed stay', () {
+      final applied = merge(
+        [unknown('org.example.A', 1), unknown('org.example.B', 1)],
+        [unknown('org.example.A', 2), unknown('org.example.C', 1)],
+        [
+          unknown('org.example.B', 3),
+          unknown('org.example.A', 3),
+          unknown('org.example.D', 1),
+        ],
+      );
+      expect(applied.value!['extensions'], [
+        unknown('org.example.A', 2),
+        unknown('org.example.D', 1),
+        unknown('org.example.C', 1),
+      ]);
+      expect(applied.keptFields, ['extensions']);
+    });
+
+    test('a changed extension stays when the message drops it', () {
+      final applied = merge(
+        [unknown('org.example.A', 1)],
+        [unknown('org.example.A', 2)],
+        [],
+      );
+      expect(applied.value!['extensions'], [unknown('org.example.A', 2)]);
+    });
+
+    test('an extension that does not decode stays as the user left it', () {
+      final broken = {
+        'name': 'org.example.Cat',
+        'data': Uint8List.fromList([0xc3, 0x01, 0]),
+      };
+      final other = {
+        'name': 'org.example.Cat',
+        'data': Uint8List.fromList([0xc3, 0x01, ...List.filled(8, 0), 2]),
+      };
+      final bad = {
+        'name': 'org.example.Cat',
+        'data': Uint8List.fromList([
+          0xc3,
+          0x01,
+          ...AvroCodec(writer: cat)
+              .encodeSingleObject({'tasso': '', 'fur': ''})
+              .sublist(2, 10),
+          0x7f,
+        ]),
+      };
+      for (final user in [broken, other, bad]) {
+        expect(
+          merge(
+            [
+              ext('org.example.Cat', {'tasso': '', 'fur': ''}),
+            ],
+            [user],
+            [
+              ext('org.example.Cat', {'tasso': '1', 'fur': ''}),
+            ],
+          ).value!['extensions'],
+          [user],
+        );
+      }
+    });
+
+    test('at most the limit of elements', () {
+      final many = [
+        for (var i = 0; i <= 32; i++) unknown('org.example.E$i', 1),
+      ];
+      expect((merge([], many, []).value!['extensions']! as List).length, 32);
+    });
+  });
+
+  test('relations merge per element by their id', () {
+    Map<String, Object?> relation(String id, String note) => {
+      'id': id,
+      'kind': 'axt.related',
+      'target': {'uri': 'https://example.org', 'text': ''},
+      'note': note,
+      'start': null,
+      'end': null,
+      'attributes': <String, String>{},
+    };
+    const a = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+    const b = '1f2e3d4c-5b6a-4978-8a96-a5b4c3d2e1f0';
+    final schema = Schema.parse(
+      '{"type":"record","name":"R","namespace":"a","fields":[{"name":'
+      '"links","type":{"type":"array","items":${axtSchema('axt.Relation').jsonText}}}]}',
+    );
+    final lists = elementListsOf(schema);
+    expect(lists, {'links': ElementKey.id});
+    final first = data(null, 1, {
+      'links': [relation(a, '')],
+    });
+    final applied = applyRecordMessage(
+      held: first.held,
+      current: {
+        'links': [relation(a, ''), relation(b, 'mine')],
+      },
+      kind: RecordKind.data,
+      version: 2,
+      policy: const RecordPolicy(),
+      type: 'a.Memo',
+      value: {
+        'links': [relation(a, 'theirs')],
+      },
+      elements: ElementMerge(lists: lists),
+    );
+    expect(applied.value!['links'], [
+      relation(a, 'theirs'),
+      relation(b, 'mine'),
+    ]);
+    expect(applied.outcome, Outcome.merged);
+    expect(elementMergeOf(schema, writers: [schema], readers: {}).lists, lists);
   });
 
   test('the adapter plays a session', () async {

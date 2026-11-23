@@ -12,8 +12,18 @@ _Avoid_: database, repository
 The 32 bytes of a private key, the Ed25519 signing key or the X25519 encryption key, that the app keeps and hands the library.
 _Avoid_: secret, private key file
 
+**Description**:
+A type as AXT 0.2.0 gives it: an `axt.Field` of bricks in the JSON form of `spec/fields.md`, section 10.3, from which the library derives the Avro schema.
+_Avoid_: schema text (for a type)
+
 **Record value**:
-A record as a generic Avro value, `Map<String, Object?>`, with its type's full name and schema.
+A record as a generic Avro value, `Map<String, Object?>`, with its type's description.
+
+**Links**:
+A record's relations to records not shared with a receiver, to things outside AXT, and its extensions; they go along only with `withLinks`.
+
+**Relation index**:
+What the library keeps to resolve relations across senders and to answer which records link to one.
 
 **Preview**:
 What `inspect` returns for a file before anything is applied: sender, short fingerprint, app name, the types that fit, first contact or not.

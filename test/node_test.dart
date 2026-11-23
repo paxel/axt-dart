@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:avro/avro.dart' show Branch;
 import 'package:axt_protocol/axt_protocol.dart';
 import 'package:axt_protocol/src/node.dart' show nextStamp;
 import 'package:test/test.dart';
@@ -41,9 +42,27 @@ final class MemoryStore implements AxtStore {
   }
 }
 
-const memo =
-    '{"type":"record","name":"Memo","namespace":"org.example","axt.version":1,'
-    '"fields":[{"name":"text","type":"string"},{"name":"note","type":"string"}]}';
+Map<String, Object?> textField(String name) => {
+  'name': name,
+  'doc': 'The $name.',
+  'texts': <String, Object?>{},
+  'required': true,
+  'kind': {'axt.StringField': <String, Object?>{}},
+};
+
+/// org.example.Memo, of two required texts.
+final TypeDescription memo = TypeDescription.fromJson({
+  'name': 'memo',
+  'doc': 'A memo.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Memo',
+      'version': 1,
+      'fields': [textField('text'), textField('note')],
+    },
+  },
+});
 
 Map<String, Object?> manifest(String name, {bool takesMemo = true}) => {
   'app_name': name,
@@ -67,6 +86,7 @@ Map<String, Object?> manifest(String name, {bool takesMemo = true}) => {
 
 void main() {
   group('more', moreTests);
+  group('relations', relationTests);
   late TestKey a, b;
   setUpAll(() async {
     a = await TestKey.named('node a');
@@ -84,7 +104,7 @@ void main() {
       store: readerStore,
       signingSeed: b.seed,
       manifest: manifest('Reader'),
-      readers: {'org.example.Memo': memo},
+      readers: [memo],
     );
     expect(sender.shortFingerprintOfOwnKey, hasLength(29));
     final id = newRecordId();
@@ -271,9 +291,27 @@ void main() {
   });
 }
 
-const blob =
-    '{"type":"record","name":"Blob","namespace":"org.example",'
-    '"fields":[{"name":"data","type":"bytes"}]}';
+/// org.example.Blob, of required bytes.
+final TypeDescription blob = TypeDescription.fromJson({
+  'name': 'blob',
+  'doc': 'A blob.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Blob',
+      'version': 1,
+      'fields': [
+        {
+          'name': 'data',
+          'doc': 'The data.',
+          'texts': <String, Object?>{},
+          'required': true,
+          'kind': {'axt.BytesField': <String, Object?>{}},
+        },
+      ],
+    },
+  },
+});
 
 void moreTests() {
   late TestKey a, b;
@@ -372,4 +410,273 @@ void moreTests() {
     );
     expect(result.records.single.result, 'RECORD_ID_INVALID');
   });
+}
+
+/// org.example.Note, a text with relations.
+final TypeDescription note = TypeDescription.fromJson({
+  'name': 'note',
+  'doc': 'A note.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Note',
+      'version': 1,
+      'fields': [
+        textField('text'),
+        {
+          'name': 'links',
+          'doc': 'The links.',
+          'texts': <String, Object?>{},
+          'kind': {'axt.RelationField': <String, Object?>{}},
+        },
+      ],
+    },
+  },
+});
+
+Map<String, Object?> manifestOfNotes(String name) => {
+  ...manifest(name, takesMemo: false),
+  'takes': [
+    {
+      'type': 'org.example.Note',
+      'min_version': 1,
+      'max_version': null,
+      'purpose': 'A note.',
+      'purpose_translations': <String, String>{},
+    },
+  ],
+};
+
+Map<String, Object?> relation(String id, Object target) => {
+  'id': id,
+  'kind': 'axt.related',
+  'target': target,
+  'note': '',
+  'start': null,
+  'end': null,
+  'attributes': <String, String>{},
+};
+
+Branch recordTarget(String id, Uint8List? sender) => Branch(
+  'axt.RelationRecordTarget',
+  {'id': id, 'sender': sender, 'type': '', 'text': ''},
+);
+
+void relationTests() {
+  late TestKey a, b;
+  setUpAll(() async {
+    a = await TestKey.named('relations a');
+    b = await TestKey.named('relations b');
+  });
+
+  test(
+    'relations resolve across senders and show where they link from',
+    () async {
+      final sender = await AxtNode.open(
+        store: MemoryStore(),
+        signingSeed: a.seed,
+        manifest: manifestOfNotes('A'),
+      );
+      final reader = await AxtNode.open(
+        store: MemoryStore(),
+        signingSeed: b.seed,
+        manifest: manifestOfNotes('B'),
+        readers: [note],
+      );
+      final first = newRecordId();
+      final second = newRecordId();
+      final own = newRecordId();
+      final held = <String, Map<String, Object?>?>{};
+      Future<void> read(Uint8List file) async => reader.apply(
+        await reader.inspect(file),
+        acceptSender: true,
+        onRecord: (change) async => held[change.id] = change.value,
+        currentValue: (_, id) async => held[id],
+      );
+      const r1 = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+      const r2 = '1f2e3d4c-5b6a-4978-8a96-a5b4c3d2e1f0';
+      const r3 = '0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093';
+      await read(
+        await sender.writeFile([
+          OutgoingRecord(first, note, {'text': 'first', 'links': <Object?>[]}),
+          OutgoingRecord(second, note, {
+            'text': 'second',
+            'links': [
+              relation(r1, recordTarget(first, null)),
+              relation(
+                r2,
+                const Branch('axt.RelationOutsideTarget', {
+                  'uri': 'https://example.org',
+                  'text': '',
+                }),
+              ),
+            ],
+          }),
+        ], receiver: b.public),
+      );
+      final name = a.hex;
+      expect(
+        await reader.resolve(name, {'id': first, 'sender': null}),
+        RecordAddress(name, first),
+      );
+      expect(
+        await reader.resolve(name, {'id': first, 'sender': b.public}),
+        isNull,
+        reason: 'no record of its own of that id',
+      );
+      expect(
+        await reader.resolve(name, {'uri': 'https://example.org'}),
+        isNull,
+      );
+      expect(await reader.linkedFrom(name, first), [
+        (holder: RecordAddress(name, second), relation: r1),
+      ]);
+
+      // The reader's own record links the received one.
+      await reader.writeFile([
+        OutgoingRecord(own, note, {
+          'text': 'mine',
+          'links': [relation(r3, recordTarget(first, a.public))],
+        }),
+      ], receiver: a.public);
+      expect(
+        await reader.linkedFrom(name, first),
+        [
+          (holder: RecordAddress(name, second), relation: r1),
+          (holder: RecordAddress(b.hex, own), relation: r3),
+        ]..sort((x, y) => x.holder.sender.compareTo(y.holder.sender)),
+      );
+      expect(
+        await reader.resolve(name, {'id': own, 'sender': b.public}),
+        RecordAddress(b.hex, own),
+      );
+
+      // The sender deletes the second note: its relation is gone.
+      await read(
+        await sender.writeFile([
+          OutgoingRecord(first, note, {'text': 'first', 'links': <Object?>[]}),
+          OutgoingRecord.deleted(second),
+        ], receiver: b.public),
+      );
+      expect(await reader.linkedFrom(name, first), [
+        (holder: RecordAddress(b.hex, own), relation: r3),
+      ]);
+      // The reader deletes its own record: the link from it is gone too.
+      await reader.writeFile([OutgoingRecord.deleted(own)], receiver: a.public);
+      expect(await reader.linkedFrom(name, first), isEmpty);
+      expect(await reader.resolve(b.hex, {'id': own, 'sender': null}), isNull);
+      expect(RecordAddress(name, first).toString(), '$name/$first');
+      expect(
+        RecordAddress(name, first).hashCode,
+        RecordAddress(name, first).hashCode,
+      );
+    },
+  );
+
+  test('a record kept against a withdrawal keeps its relations', () async {
+    final sender = await AxtNode.open(
+      store: MemoryStore(),
+      signingSeed: a.seed,
+      manifest: manifestOfNotes('A'),
+    );
+    final reader = await AxtNode.open(
+      store: MemoryStore(),
+      signingSeed: b.seed,
+      manifest: manifestOfNotes('B'),
+    );
+    final first = newRecordId();
+    final second = newRecordId();
+    const r1 = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+    final held = <String, Map<String, Object?>?>{};
+    Future<FileResult> read(Uint8List file) async => reader.apply(
+      await reader.inspect(file),
+      acceptSender: true,
+      onRecord: (change) async => held[change.id] = change.value,
+      currentValue: (_, id) async => held[id],
+    );
+    await read(
+      await sender.writeFile([
+        OutgoingRecord(first, note, {'text': 'first', 'links': <Object?>[]}),
+        OutgoingRecord(second, note, {
+          'text': 'second',
+          'links': [relation(r1, recordTarget(first, null))],
+        }),
+      ], receiver: b.public),
+    );
+    held[first] = {...held[first]!, 'text': 'mine'};
+    held[second] = {...held[second]!, 'text': 'mine'};
+    // Withdrawals alone: the file holds no schema of the type.
+    final kept = await read(await sender.writeFile([], receiver: b.public));
+    expect(kept.records.map((r) => r.result), ['KEPT', 'KEPT']);
+    expect(await reader.linkedFrom(a.hex, first), [
+      (holder: RecordAddress(a.hex, second), relation: r1),
+    ]);
+  });
+
+  test(
+    'links go along only with a share that lets them, or to the own user',
+    () async {
+      final sender = await AxtNode.open(
+        store: MemoryStore(),
+        signingSeed: a.seed,
+        manifest: manifestOfNotes('A'),
+      );
+      final first = newRecordId();
+      final second = newRecordId();
+      const r1 = '3e8a5b14-7c29-4d6e-a0f3-1b9d2c7e5a46';
+      const r2 = '1f2e3d4c-5b6a-4978-8a96-a5b4c3d2e1f0';
+      const r3 = '0b6f4a3e-8c1d-4f27-9e5a-2d7c41b8e093';
+      final links = [
+        relation(r1, recordTarget(first, null)),
+        relation(r2, recordTarget(newRecordId(), a.public)),
+        relation(
+          r3,
+          const Branch('axt.RelationOutsideTarget', {
+            'uri': 'https://example.org',
+            'text': '',
+          }),
+        ),
+      ];
+      Future<List<String>> sent({
+        bool withLinks = false,
+        bool ownUser = false,
+      }) async {
+        final reader = await AxtNode.open(
+          store: MemoryStore(),
+          signingSeed: b.seed,
+          manifest: manifestOfNotes('B'),
+          readers: [note],
+        );
+        final held = <String, Map<String, Object?>?>{};
+        final file = await sender.writeFile(
+          [
+            OutgoingRecord(first, note, {
+              'text': 'first',
+              'links': <Object?>[],
+            }),
+            OutgoingRecord(second, note, {
+              'text': 'second',
+              'links': links,
+            }, withLinks: withLinks),
+          ],
+          receiver: b.public,
+          ownUser: ownUser,
+        );
+        await reader.apply(
+          await reader.inspect(file),
+          acceptSender: true,
+          onRecord: (change) async => held[change.id] = change.value,
+          currentValue: (_, id) async => held[id],
+        );
+        return [
+          for (final r in held[second]!['links']! as List<Object?>)
+            (r! as Map)['id'] as String,
+        ];
+      }
+
+      expect(await sent(), [r1]);
+      expect(await sent(withLinks: true), [r1, r2, r3]);
+      expect(await sent(ownUser: true), [r1, r2, r3]);
+    },
+  );
 }

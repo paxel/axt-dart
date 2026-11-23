@@ -4,15 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.1.0]
+## [0.2.0]
 
 ### Added
 
-- Conforms to AXT 0.1.0: passes every vector of the categories `encoding`, `types`, `time`, `keys`, `manifest`, `records`, `protocol`, `shares` and `file` of its conformance suite ([axt-1011](https://github.com/paxel/axt/issues/12)).
-- Reading AXT files in two steps, `inspect` for a preview of the sender and what fits, then `apply`, which hands each record to the app inside the app's own store transaction ([axtdrt-1003](https://github.com/paxel/axt-dart/issues/4), [axtdrt-1012](https://github.com/paxel/axt-dart/issues/13)).
-- Writing AXT files of the records shared with one receiver, with the withdrawals it is owed, or as an export ([axtdrt-1012](https://github.com/paxel/axt-dart/issues/13), [axtdrt-1011](https://github.com/paxel/axt-dart/issues/12)).
-- The user's own changes of received records are kept per field or for the whole record, as the app chooses ([axtdrt-1009](https://github.com/paxel/axt-dart/issues/10)).
-- Versions as state stamps and record ids as UUIDs of version 7, so versions keep rising after a restore from a backup ([axtdrt-1012](https://github.com/paxel/axt-dart/issues/13)).
+- Passes the conformance category `bricks`: descriptions of types are validated, their schemas derived, and record values checked against them, including relations and extensions; patterns run in time linear in the value, so a pattern of another app cannot hang the app ([axtdrt-1015](https://github.com/paxel/axt-dart/issues/18)).
+- Relations resolve across senders: `AxtNode.resolve` finds the record a relation points at, also of another sender or of the app itself, following the senders' device sets and joins, and `AxtNode.linkedFrom` lists the relations that point at a record ([axtdrt-1017](https://github.com/paxel/axt-dart/issues/20)).
+- Extensions of other apps are carried unchanged when their type is unknown; where the user changed one, it is kept per extension, and merged field by field with the sender's when the app knows the extension's type from its readers ([axtdrt-1018](https://github.com/paxel/axt-dart/issues/21)).
+- Relations merge per relation: the relations the user added, changed or removed stay when the sender updates the record ([axtdrt-1019](https://github.com/paxel/axt-dart/issues/22)).
+- A record goes to an app of another user without its links unless `OutgoingRecord.withLinks` says a share lets them go along: only its relations to records shared in the same file stay, and its extensions are left out; `writeFile(ownUser: true)` sends every record whole to an app of the own user ([axtdrt-1020](https://github.com/paxel/axt-dart/issues/23)).
+- Proposals can add, change or remove single relations and set single fields within an extension; a list proposed whole keeps the elements the proposer's share left out, and a proposal of an element the share left out is not taken ([axtdrt-1021](https://github.com/paxel/axt-dart/issues/24)).
+- `dart run axt_protocol:generate` writes typed Dart classes for the types of descriptions, and the eight example types of AXT 0.2.0 ship generated in `package:axt_protocol/examples.dart` ([axtdrt-1022](https://github.com/paxel/axt-dart/issues/25)).
+
+### Changed
+
+- Conforms to AXT 0.2.0 in place of 0.1.0: offers and files of AXT 0.1.0 are no longer read ([axtdrt-1014](https://github.com/paxel/axt-dart/issues/17)).
+- Types are given as descriptions: `OutgoingRecord` and the `readers` of `AxtNode.open` take a `TypeDescription`, made from the JSON form of a description, in place of a schema text; files and offers carry descriptions, and an offered type whose description is not valid is declined with `DESCRIPTION_INVALID` ([axtdrt-1016](https://github.com/paxel/axt-dart/issues/19)).
 
 ---
 

@@ -12,11 +12,14 @@ export 'src/node.dart'
         AxtStore,
         FilePreview,
         FileResult,
+        Link,
         OutgoingRecord,
+        RecordAddress,
         RecordChange,
         newRecordId;
+export 'src/type_description.dart' show TypeDescription;
 export 'src/records.dart'
     show DeleteWithLocalChanges, LocalChanges, Outcome, RecordPolicy;
 
 /// The version of the AXT specification this library conforms to.
-const String axtVersion = '0.1.0';
+const String axtVersion = '0.2.0';

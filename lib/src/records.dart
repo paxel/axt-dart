@@ -2,7 +2,12 @@
 /// changes and the outcomes (AXT `spec/records.md`, sections 2, 3 and 5 to 7).
 library;
 
+import 'dart:typed_data';
+
+import 'package:avro/avro.dart';
+
 import 'errors.dart';
+import 'limits.dart';
 
 /// What the receiver does when its user changed a received record (section 6).
 enum LocalChanges {
@@ -41,6 +46,38 @@ final class RecordPolicy {
 
 /// The kind of a record message.
 enum RecordKind { data, delete, withdraw }
+
+/// The key by which the elements of a list merged per element are told
+/// apart (sync.md, section 25.1).
+enum ElementKey {
+  /// A relation, by its `id`, compared as 128-bit values.
+  id,
+
+  /// An extension, by its `name`.
+  name,
+}
+
+/// What a receiver needs to merge lists per element (section 6.1): the
+/// top-level fields that are such lists, and the schemas of the extension
+/// types it knows.
+final class ElementMerge {
+  const ElementMerge({
+    this.lists = const {},
+    this.writers = const {},
+    this.own = const {},
+  });
+
+  /// The lists merged per element, by field name.
+  final Map<String, ElementKey> lists;
+
+  /// The writer schemas of extensions that the receiver holds, by
+  /// fingerprint.
+  final Map<int, Schema> writers;
+
+  /// The receiver's own schema of each extension type it knows, by full
+  /// name.
+  final Map<String, Schema> own;
+}
 
 /// The outcome of a record message (section 7).
 enum Outcome {
@@ -180,6 +217,7 @@ Applied applyRecordMessage({
   required RecordPolicy policy,
   String? type,
   Map<String, Object?>? value,
+  ElementMerge elements = const ElementMerge(),
 }) {
   if (version < 1) {
     throw AxtException(ErrorCode.versionInvalid, 'version $version is below 1');
@@ -284,8 +322,18 @@ Applied applyRecordMessage({
       final merged = {...message};
       final kept = <String>[];
       for (final field in changes) {
-        if (sameValue(current![field], message[field])) continue;
-        merged[field] = current[field];
+        final key = elements.lists[field];
+        final mine = key == null
+            ? current![field]
+            : _mergeElements(
+                key,
+                elements,
+                taken: held!.taken![field] as List<Object?>? ?? const [],
+                user: current![field] as List<Object?>? ?? const [],
+                message: message[field] as List<Object?>? ?? const [],
+              );
+        if (sameValue(mine, message[field])) continue;
+        merged[field] = mine;
         kept.add(field);
       }
       kept.sort();
@@ -319,4 +367,127 @@ Applied? takeKeptRemoval(HeldRecord held) {
     ),
     value: null,
   );
+}
+
+/// The top-level fields of [schema] that are lists merged per element: the
+/// lists of relations and of extensions.
+Map<String, ElementKey> elementListsOf(Schema schema) => {
+  if (schema is RecordSchema)
+    for (final field in schema.fields)
+      if (field.schema case ArraySchema(items: RecordSchema(:final fullName)))
+        if (fullName == 'axt.Relation')
+          field.name: ElementKey.id
+        else if (fullName == 'axt.Extension')
+          field.name: ElementKey.name,
+};
+
+/// What a receiver merges per element in a record of [schema], with the
+/// extension types it knows: the [writers] it holds and its [readers], its
+/// own schemas, by full name.
+ElementMerge elementMergeOf(
+  Schema schema, {
+  required Iterable<Schema> writers,
+  required Map<String, Schema> readers,
+}) => ElementMerge(
+  lists: elementListsOf(schema),
+  writers: {
+    for (final w in writers) w.crc64: w,
+    for (final r in readers.values) r.crc64: r,
+  },
+  own: readers,
+);
+
+Object? _elementKey(ElementKey key, Object? element) {
+  final map = element! as Map<String, Object?>;
+  return switch (key) {
+    ElementKey.id => recordKey(map['id']! as String),
+    ElementKey.name => map['name'],
+  };
+}
+
+/// The list merged per element from [taken], the list the receiver last
+/// took from the sender, [user], its user's list, and [message] (section
+/// 6.1).
+List<Object?> _mergeElements(
+  ElementKey key,
+  ElementMerge elements, {
+  required List<Object?> taken,
+  required List<Object?> user,
+  required List<Object?> message,
+}) {
+  final before = {for (final e in taken) _elementKey(key, e): e};
+  final mine = {for (final e in user) _elementKey(key, e): e};
+  final changed = {
+    for (final MapEntry(key: k, value: e) in mine.entries)
+      if (!before.containsKey(k) || !sameValue(before[k], e)) k,
+  };
+  final removed = {
+    for (final k in before.keys)
+      if (!mine.containsKey(k)) k,
+  };
+  final merged = <Object?>[];
+  final placed = <Object?>{};
+  for (final e in message) {
+    final k = _elementKey(key, e);
+    placed.add(k);
+    if (removed.contains(k)) continue;
+    if (!changed.contains(k)) {
+      merged.add(e);
+    } else if (key == ElementKey.name && before.containsKey(k)) {
+      merged.add(_mergeExtension(elements, before[k], mine[k], e));
+    } else {
+      merged.add(mine[k]);
+    }
+  }
+  for (final MapEntry(key: k, value: e) in mine.entries) {
+    if (changed.contains(k) && !placed.contains(k)) merged.add(e);
+  }
+  final max = limit(
+    key == ElementKey.id ? 'fields.relations' : 'fields.extensions',
+  );
+  return merged.length > max ? merged.sublist(0, max) : merged;
+}
+
+/// The extension that the user changed, [user], merged field by field with
+/// [message] where the receiver knows the writer schemas of all three and
+/// has its own schema of the type (fields.md, section 12.4); the user's
+/// extension whole otherwise.
+Object? _mergeExtension(
+  ElementMerge elements,
+  Object? taken,
+  Object? user,
+  Object? message,
+) {
+  final name = (user! as Map<String, Object?>)['name']! as String;
+  final own = elements.own[name];
+  Map<String, Object?>? decode(Object? extension) {
+    final data = (extension! as Map<String, Object?>)['data']! as Uint8List;
+    final SingleObjectHeader header;
+    try {
+      header = SingleObjectHeader.parse(data);
+    } on DecodeException {
+      return null;
+    }
+    final writer = elements.writers[header.fingerprint];
+    if (writer == null || own == null) return null;
+    try {
+      return AvroCodec(writer: writer, reader: own).decode(header.payload)
+          as Map<String, Object?>?;
+    } on AvroException {
+      return null;
+    }
+  }
+
+  final before = decode(taken);
+  final mine = decode(user);
+  final theirs = decode(message);
+  if (before == null || mine == null || theirs == null) return user;
+  final merged = {
+    for (final MapEntry(:key, :value) in theirs.entries)
+      key: sameValue(mine[key], before[key]) ? value : mine[key],
+  };
+  return {
+    'name': name,
+    'data': AvroCodec(writer: own!).encodeSingleObject(merged),
+  };
 }

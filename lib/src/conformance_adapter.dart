@@ -9,16 +9,19 @@ import 'package:avro/avro.dart';
 import 'package:crypto/crypto.dart';
 
 import '../axt_protocol.dart';
+import 'bricks.dart';
 import 'envelope.dart';
 import 'record_decoder.dart';
 import 'zone_rules.dart';
 import 'device_sets.dart';
 import 'ed25519.dart' as ed25519;
 import 'file_reader.dart';
+import 'links.dart';
 import 'live_session.dart';
 import 'manifest.dart';
 import 'proposals.dart';
 import 'records.dart';
+import 'relation_index.dart';
 import 'sealing.dart' as sealing;
 import 'shares.dart';
 import 'signing.dart';
@@ -27,6 +30,7 @@ import 'signing.dart';
 /// answers. A category is listed only once all of its vectors pass.
 const List<String> implementedCategories = [
   'encoding',
+  'bricks',
   'types',
   'time',
   'keys',
@@ -106,6 +110,9 @@ final Map<String, _Operation> _operations = {
   'decode_body': _decodeBody,
   'encode_message': _encodeMessage,
   'decode_record': _decodeRecord,
+  'derive': _derive,
+  'describe': _describe,
+  'check_record': _checkRecord,
   'resolve_date_time': _resolveDateTime,
   'add_duration': _addDuration,
   'public_key': _publicKey,
@@ -119,6 +126,7 @@ final Map<String, _Operation> _operations = {
   'device_join': _deviceJoin,
   'join_chain': _joinChain,
   'device_sets': _deviceSets,
+  'relations': _relations,
   'padded_length': _paddedLength,
   'seal': _seal,
   'open': _open,
@@ -137,6 +145,7 @@ final Map<String, _Operation> _operations = {
   'pass_withdrawal': _passWithdrawal,
   'join_receivers': _joinReceivers,
   'offer_types': _offerTypes,
+  'shared_value': _sharedValue,
   'owner': _owner,
   'proposer': _proposer,
 };
@@ -220,6 +229,46 @@ Future<Map<String, Object?>> _decodeRecord(Map<String, Object?> input) async {
     _bytes(input['body']),
   );
   return _accept({'value': _json(value)});
+}
+
+Future<Map<String, Object?>> _derive(Map<String, Object?> input) async {
+  final text = deriveSchema(decodeDescription(_bytes(input['description'])));
+  final schema = Schema.parse(text);
+  return _accept({
+    'schema': text,
+    'canonical_form': schema.canonicalForm,
+    'fingerprint': _hex(crc64ToBytes(schema.crc64)),
+  });
+}
+
+Future<Map<String, Object?>> _describe(Map<String, Object?> input) async {
+  final description = decodeDescription(_bytes(input['description']));
+  validateDescription(description);
+  final languages = input['languages'];
+  if (languages is! List<Object?> || languages.any((l) => l is! String)) {
+    throw const _BadRequest('languages is not a list of strings');
+  }
+  final tags = languages.cast<String>();
+  final path = input['field'];
+  if (path == null) {
+    final root =
+        (description['kind']! as Branch).value! as Map<String, Object?>;
+    return _accept(
+      describeObject(description['texts']! as Map<String, Object?>, root, tags),
+    );
+  }
+  if (path is! String) throw const _BadRequest('field is not a string');
+  final field = fieldAt(description, path);
+  if (field == null) throw _BadRequest('no field $path');
+  return _accept(describeField(field, tags));
+}
+
+Future<Map<String, Object?>> _checkRecord(Map<String, Object?> input) async {
+  checkRecord(
+    decodeDescription(_bytes(input['description'])),
+    _bytes(input['body']),
+  );
+  return _accept(<String, Object?>{});
 }
 
 Map<String, Object?> _object(Map<String, Object?> input, String name) {
@@ -308,6 +357,7 @@ String _hex(List<int> bytes) {
 /// A decoded Avro value in the JSON form of `spec/conformance.md`, section 3.3.
 Object? _json(Object? value) => switch (value) {
   Uint8List() => _hex(value),
+  Branch(:final name, :final value) => {name: _json(value)},
   Map<String, Object?>() => {
     for (final entry in value.entries) entry.key: _json(entry.value),
   },
@@ -501,6 +551,67 @@ Future<Map<String, Object?>> _deviceSets(Map<String, Object?> input) async {
   return {'steps': results};
 }
 
+Future<Map<String, Object?>> _relations(Map<String, Object?> input) async {
+  final senders = input['senders'];
+  final relations = input['relations'];
+  final steps = input['steps'];
+  if (senders is! List<Object?> ||
+      relations is! List<Object?> ||
+      steps is! List<Object?>) {
+    throw const _BadRequest('senders, relations and steps must be lists');
+  }
+  final receiver = DeviceSetReceiver(
+    senders: [for (final sender in senders) _knownSender(sender)],
+    refused: _keys(input['refused']),
+  );
+  final resolver = RelationResolver(receiver, _knownSender(input['own']));
+  final held = <HeldRelation>[
+    for (final r in relations.cast<Map<String, Object?>>())
+      (
+        id: _string(r, 'id'),
+        holderSender: _string(_object(r, 'holder'), 'sender'),
+        holderId: _string(_object(r, 'holder'), 'id'),
+        targetSender: _object(r, 'target')['sender'] as String?,
+        targetId: _string(_object(r, 'target'), 'id'),
+      ),
+  ];
+  final results = <Map<String, Object?>>[];
+  for (final step in steps.cast<Map<String, Object?>>()) {
+    if (step.containsKey('chain')) {
+      final outcome = await receiver.receiveChain(_chain(step['chain']));
+      results.add({
+        'results': [for (final result in outcome.results) result.code],
+      });
+      continue;
+    }
+    results.add({
+      'relations': [
+        for (final relation in held)
+          {'id': relation.id, ...resolver.resolveJson(relation)},
+      ],
+      'linked_from': [
+        for (final linked in resolver.linkedFrom(held))
+          {
+            'sender': linked.sender,
+            'id': linked.id,
+            'from': [
+              for (final f in linked.from)
+                {'sender': f.sender, 'id': f.id, 'relation': f.relation},
+            ],
+          },
+      ],
+    });
+  }
+  return {'steps': results};
+}
+
+extension on RelationResolver {
+  Map<String, Object?> resolveJson(HeldRelation relation) {
+    final resolution = resolve(relation);
+    return {'sender': resolution.sender, 'resolved': resolution.resolved};
+  }
+}
+
 Future<Map<String, Object?>> _paddedLength(Map<String, Object?> input) async {
   final length = input['length'];
   if (length is! int) throw const _BadRequest('length is no integer');
@@ -584,7 +695,73 @@ Map<String, Object?> _step(Applied applied) => {
   'receiver_version': applied.held.version,
   'kept_fields': applied.keptFields,
   'state': applied.held.state.code,
-  'value': applied.value,
+  'value': _json(applied.value),
+};
+
+/// Whether [value] is an extension in the JSON form of the vectors.
+bool _isExtension(Object? value) =>
+    value is Map<String, Object?> &&
+    value.length == 2 &&
+    value['name'] is String &&
+    value['data'] is String;
+
+/// [value] with the data of its extensions as bytes.
+Object? _extensionBytes(Object? value) => switch (value) {
+  final Map<String, Object?> e when _isExtension(e) => {
+    'name': e['name'],
+    'data': _unhex(e['data']! as String),
+  },
+  Map<String, Object?>() => {
+    for (final entry in value.entries) entry.key: _extensionBytes(entry.value),
+  },
+  List<Object?>() => [for (final v in value) _extensionBytes(v)],
+  _ => value,
+};
+
+/// The record as the sender sends it to one receiver (shares.md, section
+/// 19.1); relations and extensions are found by their shape, as the input
+/// has no schema.
+Future<Map<String, Object?>> _sharedValue(Map<String, Object?> input) async {
+  final value = _object(input, 'value');
+  if (input['own_user'] == true || input['links'] == true) {
+    return _accept({'value': value});
+  }
+  final shared = _strings(input['shared']).toSet();
+  final ownKeys = _strings(input['own_keys']).toSet();
+  Object? walk(Object? value) => switch (value) {
+    final List<Object?> list
+        when list.isNotEmpty &&
+            list.every((e) => _elementKeyOf(e) == ElementKey.id) =>
+      sharedRelations(list, shared: shared, ownKeys: ownKeys),
+    final List<Object?> list when list.isNotEmpty && list.every(_isExtension) =>
+      const <Object?>[],
+    Map<String, Object?>() => {
+      for (final MapEntry(:key, value: v) in value.entries) key: walk(v),
+    },
+    List<Object?>() => [for (final v in value) walk(v)],
+    _ => value,
+  };
+  return _accept({'value': walk(value)});
+}
+
+/// The key of [element] when it is an element of a list merged per
+/// element: a relation or an extension.
+ElementKey? _elementKeyOf(Object? element) => switch (element) {
+  {'id': String(), 'target': Map()} => ElementKey.id,
+  {'name': String(), 'data': Uint8List()} when (element as Map).length == 2 =>
+    ElementKey.name,
+  _ => null,
+};
+
+/// The lists of [values] merged per element: those that hold relations or
+/// extensions.
+Map<String, ElementKey> _elementLists(List<Map<String, Object?>?> values) => {
+  for (final value in values)
+    if (value != null)
+      for (final MapEntry(:key, value: field) in value.entries)
+        if (field is List<Object?>)
+          for (final element in field)
+            if (_elementKeyOf(element) case final ElementKey k) key: k,
 };
 
 /// One receiver and the records of one sender, starting empty (records.md,
@@ -596,6 +773,10 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
   final held = <String, HeldRecord>{};
   final current = <String, Map<String, Object?>?>{};
   final steps = <Object?>[];
+  final extensions = [
+    for (final text in _strings(input['extensions'] ?? <Object?>[]))
+      parseTypeSchema(text),
+  ];
   for (final event in events) {
     if (event is! Map<String, Object?>) {
       throw const _BadRequest('an event is no object');
@@ -616,7 +797,7 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
       final key = recordKey(_string(change, 'id'));
       current[key] = {
         ...?current[key],
-        _string(change, 'field'): change['value'],
+        _string(change, 'field'): _extensionBytes(change['value']),
       };
       steps.add(<String, Object?>{});
     } else if (delete is Map<String, Object?>) {
@@ -635,6 +816,8 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
         final key = recordKey(_string(message, 'id'));
         final version = message['version'];
         if (version is! int) throw const _BadRequest('version is no integer');
+        final value =
+            _extensionBytes(message['value']) as Map<String, Object?>?;
         final applied = applyRecordMessage(
           held: held[key],
           current: current[key],
@@ -647,7 +830,12 @@ Future<Map<String, Object?>> _apply(Map<String, Object?> input) async {
           version: version,
           policy: policy,
           type: message['type'] as String?,
-          value: message['value'] as Map<String, Object?>?,
+          value: value,
+          elements: ElementMerge(
+            lists: _elementLists([value, current[key], held[key]?.taken]),
+            writers: {for (final s in extensions) s.crc64: s},
+            own: {for (final s in extensions) (s as NamedSchema).fullName: s},
+          ),
         );
         held[key] = applied.held;
         current[key] = applied.value;
@@ -848,7 +1036,10 @@ Future<Map<String, Object?>> _session(Map<String, Object?> input) async {
       if (types is! List<Object?>) throw const _BadRequest('types is no list');
       final message = await app.offer(_string(offer, 'offer_id'), [
         for (final t in types.cast<Map<String, Object?>>())
-          (schema: _string(t, 'schema'), count: t['count']! as int),
+          (
+            description: descriptionFromJson(t['description']),
+            count: t['count']! as int,
+          ),
       ]);
       answers.add({'message': _hex(message)});
     } else if (step.containsKey('close')) {
@@ -1030,6 +1221,7 @@ Future<Map<String, Object?>> _owner(Map<String, Object?> input) async {
         current: _keys(r['current']),
         removed: _keys(r['removed']),
         ownUser: r['own_user'] == true,
+        links: r['links'] == true,
       ),
   ];
   final records = [
@@ -1236,6 +1428,7 @@ Future<Map<String, Object?>> _proposer(Map<String, Object?> input) async {
         ),
     ],
     proposalIds: _strings(device['proposal_ids'] ?? <String>[]),
+    schemas: _strings(device['schemas'] ?? <String>[]),
   );
   final steps = input['steps'];
   if (steps is! List<Object?>) throw const _BadRequest('steps is no list');

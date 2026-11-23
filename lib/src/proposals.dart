@@ -11,8 +11,9 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'ed25519.dart' as ed25519;
 import 'envelope.dart';
 import 'errors.dart';
+import 'element_parts.dart';
 import 'record_decoder.dart';
-import 'records.dart' show recordKey, sameValue;
+import 'records.dart' show ElementKey, elementListsOf, recordKey, sameValue;
 import 'signing.dart';
 
 String _hex(List<int> bytes) =>
@@ -71,12 +72,20 @@ final class ProposalReceiver {
     required this.current,
     required this.removed,
     this.ownUser = false,
+    this.links = false,
   });
 
   final String name;
   final Set<String> current;
   final Set<String> removed;
   final bool ownUser;
+
+  /// Whether its shares let the links of its records go along (section
+  /// 19.1).
+  final bool links;
+
+  /// Whether it gets every record whole, its links included.
+  bool get getsLinks => ownUser || links;
 }
 
 /// A record of the owner's own set.
@@ -224,6 +233,87 @@ final class ProposalOwner {
         (s.id == null || s.id!.toLowerCase() == record.id.toLowerCase()) &&
         (s.type == null || s.type == record.type),
   );
+
+  /// The schema of the record's type that the device holds, or null.
+  RecordSchema? _typeSchema(OwnRecord record) => _schemas.values
+      .map((e) => e.schema)
+      .whereType<RecordSchema>()
+      .where((s) => s.fullName == record.type)
+      .firstOrNull;
+
+  /// The ids of the records shared with [receiver], and the keys of the own
+  /// set, which decide what goes along without the links.
+  ({Set<String> shared, Set<String> ownKeys}) _linksOf(
+    ProposalReceiver receiver,
+  ) => (
+    shared: {
+      for (final r in records)
+        if (!r.deleted && r.shared.contains(receiver.name)) r.id,
+    },
+    ownKeys: {_hex(key), ...siblings},
+  );
+
+  /// Whether an entry of [fields] is a part of an element that [record]
+  /// holds and the shares of [receiver] left out (section 20.2).
+  bool _leftOutPart(
+    OwnRecord record,
+    ProposalReceiver receiver,
+    List<Map<String, Object?>> fields,
+  ) {
+    final schema = _typeSchema(record);
+    if (receiver.getsLinks || schema == null) return false;
+    final lists = elementListsOf(schema);
+    final links = _linksOf(receiver);
+    for (final field in fields) {
+      final PartName? part;
+      try {
+        part = partName(field['name']! as String);
+      } on AxtException {
+        continue;
+      }
+      final kind = part == null ? null : lists[part.list];
+      final list = part == null ? null : record.value[part.list];
+      if (kind == null || list is! List<Object?>) continue;
+      final element = elementOf(kind, list, part!.key);
+      if (element != null &&
+          !goesWithoutLinks(
+            kind,
+            element,
+            shared: links.shared,
+            ownKeys: links.ownKeys,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// [proposed], a list proposed whole, with every element of [held] that
+  /// the shares of [receiver] left out kept after it, unless the proposal
+  /// holds its key (section 19.3).
+  List<Object?> _keepLeftOut(
+    ElementKey kind,
+    List<Object?> proposed,
+    List<Object?> held,
+    ProposalReceiver receiver,
+  ) {
+    final links = _linksOf(receiver);
+    final keys = {
+      for (final e in proposed.cast<Map<String, Object?>>()) keyText(kind, e),
+    };
+    return [
+      ...proposed,
+      for (final e in held.cast<Map<String, Object?>>())
+        if (!keys.contains(keyText(kind, e)) &&
+            !goesWithoutLinks(
+              kind,
+              e,
+              shared: links.shared,
+              ownKeys: links.ownKeys,
+            ))
+          e,
+    ];
+  }
 
   Future<Uint8List> _error(
     Uint8List message,
@@ -395,7 +485,8 @@ final class ProposalOwner {
                 .where((p) => p.id.toLowerCase() == record.id.toLowerCase())
                 .length >=
             maxOpenPerRecord ||
-        ofProposer.length >= maxOpenInAll) {
+        ofProposer.length >= maxOpenInAll ||
+        _leftOutPart(record, receiver, fields)) {
       return reject(ErrorCode.proposalsNotTaken);
     }
     for (final field in fields) {
@@ -411,6 +502,20 @@ final class ProposalOwner {
       final schema =
           _schemas[crc64FromBytes(field['schema']! as Uint8List)]!.schema;
       final fieldName = field['name']! as String;
+      final PartName? part;
+      try {
+        part = partName(fieldName);
+      } on AxtException catch (e) {
+        return reject(e.code);
+      }
+      if (part != null) {
+        if (names.contains(part.list)) return reject(ErrorCode.invalidMessage);
+        final code = part.field == null
+            ? _checkElementPart(record, schema, part, field)
+            : _checkExtensionPart(record, schema, part, field);
+        if (code != null) return reject(code.code, field: code.field);
+        continue;
+      }
       final match = schema is RecordSchema && schema.fullName == record.type
           ? schema.fields.where((f) => f.name == fieldName).firstOrNull
           : null;
@@ -443,6 +548,98 @@ final class ProposalOwner {
     return (result: 'taken', replies: <Uint8List>[]);
   }
 
+  /// The list field [part] of [schema] when it is a schema of the record's
+  /// type in which the list is merged per element.
+  ({ElementKey kind, Schema items})? _elementList(
+    OwnRecord record,
+    Schema schema,
+    PartName part,
+  ) {
+    if (schema is! RecordSchema || schema.fullName != record.type) return null;
+    final kind = elementListsOf(schema)[part.list];
+    if (kind == null) return null;
+    final items =
+        (schema.fields.firstWhere((f) => f.name == part.list).schema
+                as ArraySchema)
+            .items;
+    return (kind: kind, items: items);
+  }
+
+  /// Steps 7 to 9 for an element part (section 20.1): the error, or null.
+  ({ErrorCode code, String? field})? _checkElementPart(
+    OwnRecord record,
+    Schema schema,
+    PartName part,
+    Map<String, Object?> field,
+  ) {
+    final list = _elementList(record, schema, part);
+    if (list == null || (list.kind == ElementKey.id && !_isKeyText(part.key))) {
+      return (code: ErrorCode.invalidMessage, field: null);
+    }
+    final Object? element;
+    try {
+      element = decodeElementPart(list.items, field['value']! as Uint8List);
+    } on AxtException catch (e) {
+      return (code: e.code, field: null);
+    }
+    if (element == null) return null;
+    final problem = elementProblem(
+      list.kind,
+      field['name']! as String,
+      part.key,
+      element as Map<String, Object?>,
+    );
+    return problem == null
+        ? null
+        : (code: ErrorCode.valueInvalid, field: problem);
+  }
+
+  static bool _isKeyText(String key) {
+    try {
+      return recordKey(key) == key;
+    } on AxtException {
+      return false;
+    }
+  }
+
+  /// The field of a part within an extension in the entry's [schema], when
+  /// the device holds a schema of the record's type with the list as a list
+  /// of extensions.
+  Field? _extensionField(OwnRecord record, Schema schema, PartName part) {
+    final holds = _schemas.values.any(
+      (e) =>
+          e.schema is RecordSchema &&
+          (e.schema as RecordSchema).fullName == record.type &&
+          elementListsOf(e.schema)[part.list] == ElementKey.name,
+    );
+    if (!holds || schema is! RecordSchema || schema.fullName != part.key) {
+      return null;
+    }
+    return schema.fields.where((f) => f.name == part.field).firstOrNull;
+  }
+
+  /// Steps 7 to 9 for a part within an extension: the error, or null.
+  ({ErrorCode code, String? field})? _checkExtensionPart(
+    OwnRecord record,
+    Schema schema,
+    PartName part,
+    Map<String, Object?> field,
+  ) {
+    final match = _extensionField(record, schema, part);
+    if (match == null) return (code: ErrorCode.invalidMessage, field: null);
+    final name = field['name']! as String;
+    try {
+      final value = AvroCodec(writer: match.schema)
+          .decode(field['value']! as Uint8List);
+      checkValue(match.schema, value, name, depthOffset: 1);
+    } on AvroException {
+      return (code: ErrorCode.undecodable, field: null);
+    } on AxtException catch (e) {
+      return (code: e.code, field: e.field);
+    }
+    return null;
+  }
+
   /// The decoded value of [field] of an open proposal, read with its entry's
   /// schema and resolved against the reader schema, or null when the device
   /// cannot show it.
@@ -451,6 +648,16 @@ final class ProposalOwner {
     if (entry == null) return null;
     final schema = entry.schema as RecordSchema;
     final name = field['name']! as String;
+    final part = partName(name);
+    if (part != null) {
+      final bytes = field['value']! as Uint8List;
+      if (part.field == null) {
+        final list = _elementList(record, schema, part)!;
+        return (value: decodeElementPart(list.items, bytes));
+      }
+      final match = _extensionField(record, schema, part)!;
+      return (value: AvroCodec(writer: match.schema).decode(bytes));
+    }
     final match = schema.fields.where((f) => f.name == name).firstOrNull;
     if (match == null) return null;
     final readerText = _readers?[record.type];
@@ -523,17 +730,89 @@ final class ProposalOwner {
     if (answer != 'ACCEPTED') {
       return (made: true, replies: replies, update: null);
     }
+    final value = {...record.value};
+    final lists = switch (_typeSchema(record)) {
+      final RecordSchema schema => elementListsOf(schema),
+      null => const <String, ElementKey>{},
+    };
+    final proposer = owner!;
+    for (final field in proposal.fields) {
+      final name = field['name']! as String;
+      final proposed = jsonValue(shown[name]);
+      final part = partName(name);
+      final kind = lists[part?.list ?? name];
+      if (part == null) {
+        value[name] = kind == null || proposer.getsLinks
+            ? proposed
+            : _keepLeftOut(
+                kind,
+                proposed! as List<Object?>,
+                value[name] as List<Object?>? ?? const [],
+                proposer,
+              );
+      } else if (part.field == null) {
+        final list = [...?value[part.list] as List<Object?>?];
+        final at = list.indexWhere(
+          (e) => keyText(kind!, e! as Map<String, Object?>) == part.key,
+        );
+        if (proposed == null) {
+          if (at >= 0) list.removeAt(at);
+        } else if (at >= 0) {
+          list[at] = proposed;
+        } else {
+          list.add(proposed);
+        }
+        value[part.list] = list;
+      } else {
+        value[part.list] = _setWithin(value[part.list], part, field);
+      }
+    }
     record
       ..version = record.version + 1
-      ..value = {
-        ...record.value,
-        for (final e in shown.entries) e.key: jsonValue(e.value),
-      };
+      ..value = value;
     return (
       made: true,
       replies: replies,
       update: (version: record.version, value: record.value),
     );
+  }
+
+  /// The list of extensions [list] with the field of [part] set within its
+  /// extension, encoded again with the device's own schema of the type
+  /// (section 20.3); as it is where it does not hold the extension.
+  Object? _setWithin(Object? list, PartName part, Map<String, Object?> field) {
+    if (list is! List<Object?>) return list;
+    final entry = _schemas[crc64FromBytes(field['schema']! as Uint8List)]!;
+    final own = _schemas.values
+        .map((e) => e.schema)
+        .whereType<RecordSchema>()
+        .firstWhere((s) => s.fullName == part.key);
+    return [
+      for (final e in list.cast<Map<String, Object?>>())
+        if (e['name'] != part.key)
+          e
+        else
+          () {
+            final data = _unhex(e['data']! as String);
+            final header = SingleObjectHeader.parse(data);
+            final writer = _schemas[header.fingerprint]?.schema ?? own;
+            final decoded =
+                AvroCodec(writer: writer, reader: own).decode(header.payload)!
+                    as Map<String, Object?>;
+            final ownField = own.fields.firstWhere((f) => f.name == part.field);
+            final entryField = (entry.schema as RecordSchema).fields.firstWhere(
+              (f) => f.name == part.field,
+            );
+            decoded[part.field!] = AvroCodec(
+              writer: entryField.schema,
+              reader: ownField.schema,
+            ).decode(field['value']! as Uint8List);
+            return {
+              'name': part.key,
+              'data': _hex(AvroCodec(writer: own).encodeSingleObject(decoded)),
+            };
+          }(),
+    ];
   }
 
   /// An answer of a sibling comes into the app's records; `ACCEPTED` stands.
@@ -642,14 +921,18 @@ final class ProposalProposer {
     this.manifests,
     this.records,
     this._ids,
+    this._extensions,
   );
 
+  /// A proposer with the signing key [seed], and [schemas], the writer
+  /// schemas of the extension types it holds.
   static Future<ProposalProposer> start({
     required Uint8List seed,
     required List<String> owner,
     required Map<String, ({int revision, Set<String> proposals})> manifests,
     required List<HeldOwnerRecord> records,
     required List<String> proposalIds,
+    List<String> schemas = const [],
   }) async => ProposalProposer._(
     seed,
     await ed25519.publicKeyOf(seed),
@@ -657,6 +940,11 @@ final class ProposalProposer {
     manifests,
     records,
     [...proposalIds],
+    {
+      for (final text in schemas)
+        if (parseTypeSchema(text) case final RecordSchema schema)
+          schema.crc64: schema,
+    },
   );
 
   final Uint8List _seed;
@@ -665,6 +953,7 @@ final class ProposalProposer {
   final Map<String, ({int revision, Set<String> proposals})> manifests;
   final List<HeldOwnerRecord> records;
   final List<String> _ids;
+  final Map<int, RecordSchema> _extensions;
   final List<SentProposal> sent = [];
 
   /// Blocks of new proposals per record, after an error (section 16.3).
@@ -720,6 +1009,17 @@ final class ProposalProposer {
     final fields = <Map<String, Object?>>[];
     for (final MapEntry(key: name, :value) in values.entries) {
       if (value == null) continue;
+      final PartName? part;
+      try {
+        part = partName(name);
+      } on AxtException {
+        continue;
+      }
+      if (part != null) {
+        final entry = _partEntry(record, schema, name, part, value);
+        if (entry != null) fields.add(entry);
+        continue;
+      }
       final kept = record.values[name];
       final match = schema.fields.where((f) => f.name == name).firstOrNull;
       if (match == null) continue;
@@ -759,6 +1059,48 @@ final class ProposalProposer {
       SentProposal(record.id, proposalId, to, message, fields, relay: relay),
     );
     return message;
+  }
+
+  /// The entry of the part [name] with [value], or null where its value is
+  /// that of the kept `DATA` or it names nothing the proposer can propose
+  /// (section 20.1).
+  Map<String, Object?>? _partEntry(
+    HeldOwnerRecord record,
+    RecordSchema schema,
+    String name,
+    PartName part,
+    Uint8List value,
+  ) {
+    final kind = elementListsOf(schema)[part.list];
+    if (kind == null) return null;
+    final listSchema =
+        schema.fields.firstWhere((f) => f.name == part.list).schema
+            as ArraySchema;
+    final bytes = record.values[part.list];
+    final kept = bytes == null
+        ? const <Object?>[]
+        : AvroCodec(writer: listSchema).decode(bytes)! as List<Object?>;
+    final element = elementOf(kind, kept, part.key);
+    if (part.field == null) {
+      final before = encodeElementPart(listSchema.items, element);
+      if (_hex(before) == _hex(value)) return null;
+      return {
+        'name': name,
+        'schema': crc64ToBytes(schema.crc64),
+        'value': value,
+      };
+    }
+    if (element == null) return null;
+    final header = SingleObjectHeader.parse(element['data']! as Uint8List);
+    final writer = _extensions[header.fingerprint];
+    final field = writer?.fields.where((f) => f.name == part.field).firstOrNull;
+    if (field == null) return null;
+    final decoded =
+        AvroCodec(writer: writer!).decode(header.payload)!
+            as Map<String, Object?>;
+    final before = AvroCodec(writer: field.schema).encode(decoded[field.name]);
+    if (_hex(before) == _hex(value)) return null;
+    return {'name': name, 'schema': crc64ToBytes(writer.crc64), 'value': value};
   }
 
   /// Processes a `PROPOSAL_REPLY` or an `ERROR` (sections 14.2 and 16.3).

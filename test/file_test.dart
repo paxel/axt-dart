@@ -11,15 +11,37 @@ import 'package:axt_protocol/src/errors.dart';
 import 'package:axt_protocol/src/file_reader.dart';
 import 'package:axt_protocol/src/records.dart';
 import 'package:axt_protocol/src/signing.dart';
+import 'package:axt_protocol/src/type_description.dart';
 import 'package:test/test.dart';
 
 import 'key_fixtures.dart';
 
-const memo =
-    '{"type":"record","name":"Memo","namespace":"org.example",'
-    '"fields":[{"name":"text","type":"string"}]}';
+/// org.example.Memo, of one required text.
+final TypeDescription memoType = TypeDescription.fromJson({
+  'name': 'memo',
+  'doc': 'A memo.',
+  'texts': <String, Object?>{},
+  'kind': {
+    'axt.ObjectField': {
+      'name': 'org.example.Memo',
+      'version': 1,
+      'fields': [
+        {
+          'name': 'text',
+          'doc': 'The text.',
+          'texts': <String, Object?>{},
+          'required': true,
+          'kind': {'axt.StringField': <String, Object?>{}},
+        },
+      ],
+    },
+  },
+});
 
-final Schema memoSchema = Schema.parse(memo);
+/// The entry of Memo in `axt.schemas`, as JSON text.
+final String memo = jsonEncode(memoType.fileEntry);
+
+final Schema memoSchema = memoType.schema;
 
 Matcher rejected = throwsA(
   isA<AxtException>().having((e) => e.code, 'code', ErrorCode.fileRejected),
@@ -53,11 +75,13 @@ Future<Uint8List> record(
 Future<Uint8List> fileOf(
   TestKey sender,
   List<Uint8List> messages, {
-  String? schemas = '[$memo]',
+  String? schemas = 'memo',
   Map<String, Uint8List?> override = const {},
   bool deflate = false,
 }) async {
-  final schemasBytes = schemas == null ? null : utf8.encode(schemas);
+  final schemasBytes = schemas == null
+      ? null
+      : utf8.encode(schemas == 'memo' ? '[$memo]' : schemas);
   final signature = await sign(
     sender.seed,
     fileHeaderSignedBytes(sender.public, schemasBytes),
@@ -189,7 +213,25 @@ void main() {
         reason: '$override',
       );
     }
-    for (final schemas in ['[', '{}', '[1]', '[$memo,$memo]']) {
+    final entry = memoType.fileEntry;
+    for (final schemas in [
+      '[',
+      '{}',
+      '[1]',
+      '[$memo,$memo]',
+      jsonEncode([
+        {'description': entry['description']},
+      ]),
+      jsonEncode([
+        {'description': <String, Object?>{}, 'schema': entry['schema']},
+      ]),
+      jsonEncode([
+        {'description': entry['description'], 'schema': '"int"'},
+      ]),
+      jsonEncode([
+        {'description': entry['description'], 'schema': 'string'},
+      ]),
+    ]) {
       expect(
         () async => checkFile(await fileOf(a, [message], schemas: schemas)),
         rejected,
@@ -484,24 +526,7 @@ void main() {
     expect(() => checkFile(block.takeBytes()), rejected);
   });
 
-  test('a DATA of a schema that is no named type', () async {
-    final body = AvroCodec(writer: Schema.parse('"string"'))
-        .encodeSingleObject('x');
-    final file = await checkFile(
-      await fileOf(a, [
-        await record(a, Kind.data, id, 1, body),
-      ], schemas: '["string"]'),
-    );
-    final results = await readFileRecords(
-      file,
-      const FileReader(
-        manifest: {'takes': <Object?>[], 'any_type': null},
-        readers: {},
-      ),
-      held: {},
-      current: {},
-    );
-    expect(results.single.result, 'DOES_NOT_FIT');
+  test('a schema that is not published has no text', () {
     expect(() => axtSchemaText('axt.Nope'), throwsArgumentError);
   });
 }

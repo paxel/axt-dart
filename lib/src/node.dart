@@ -16,10 +16,13 @@ import 'ed25519.dart' as ed25519;
 import 'envelope.dart';
 import 'errors.dart';
 import 'file_reader.dart';
+import 'links.dart' show withoutLinks;
 import 'manifest.dart';
-import 'record_decoder.dart';
+import 'record_decoder.dart' show parseTypeSchema;
 import 'records.dart';
+import 'relation_index.dart';
 import 'signing.dart';
+import 'type_description.dart';
 
 /// The key-value storage of bytes that the app implements for the library.
 ///
@@ -72,20 +75,35 @@ final class RecordChange {
 
 /// A record of the app's own, as it hands it to the library to send.
 final class OutgoingRecord {
-  /// A record that is there, with its type's schema text and its value.
-  const OutgoingRecord(this.id, this.schema, Map<String, Object?> this.value);
+  /// A record that is there, with its type and its value; [withLinks] when a
+  /// share for the receiver that names it lets its links go along
+  /// (`spec/shares.md`, section 19.1).
+  const OutgoingRecord(
+    this.id,
+    this.type,
+    Map<String, Object?> this.value, {
+    this.withLinks = false,
+  });
 
   /// A record its user deleted.
-  const OutgoingRecord.deleted(this.id) : schema = null, value = null;
+  const OutgoingRecord.deleted(this.id)
+    : type = null,
+      value = null,
+      withLinks = false;
 
   /// The record's id, a UUID the app keeps beside its entity.
   final String id;
 
-  /// The writer schema, as text; null for a deleted record.
-  final String? schema;
+  /// The record's type, whose derived schema is the writer schema; null for
+  /// a deleted record.
+  final TypeDescription? type;
 
   /// The value; null for a deleted record.
   final Map<String, Object?>? value;
+
+  /// Whether its links go along: its relations to records not shared in the
+  /// same file and to things outside AXT, and its extensions.
+  final bool withLinks;
 }
 
 /// What [AxtNode.inspect] found in a file, before anything is applied.
@@ -131,6 +149,32 @@ final class FileResult {
   /// One entry for each record message of the file, in its order.
   final List<FileRecordResult> records;
 }
+
+/// A record of a sender, or of the app itself, by the sender's name as
+/// [RecordChange.sender] gives it, or the app's own key as hexadecimal text,
+/// and the record's id.
+final class RecordAddress {
+  const RecordAddress(this.sender, this.id);
+
+  final String sender;
+
+  /// The id, in lower case.
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecordAddress && other.sender == sender && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(sender, id);
+
+  @override
+  String toString() => '$sender/$id';
+}
+
+/// A relation that points at a record: the record that holds it, and the
+/// relation's id.
+typedef Link = ({RecordAddress holder, String relation});
 
 final Random _random = Random.secure();
 
@@ -210,14 +254,15 @@ final class AxtNode {
 
   /// Opens the library on the app's [store], with the seed of the app's
   /// Ed25519 signing key, its own [manifest] content (without `revision`),
-  /// its reader schemas by full name and its [policy] for its user's changes.
+  /// the [readers], its own types by which it reads the records of others,
+  /// and its [policy] for its user's changes.
   ///
   /// The library raises the manifest's revision whenever its content changes.
   static Future<AxtNode> open({
     required AxtStore store,
     required Uint8List signingSeed,
     required Map<String, Object?> manifest,
-    Map<String, String> readers = const {},
+    List<TypeDescription> readers = const [],
     RecordPolicy policy = const RecordPolicy(),
     DateTime Function()? clock,
   }) async {
@@ -227,7 +272,7 @@ final class AxtNode {
       Uint8List.fromList(signingSeed),
       publicKey,
       manifest,
-      readers,
+      {for (final type in readers) type.name: type.schemaText},
       policy,
       clock ?? DateTime.now,
     );
@@ -259,10 +304,18 @@ final class AxtNode {
         ),
       );
     }
-    return DeviceSetReceiver(senders: senders);
+    final receiver = DeviceSetReceiver(senders: senders);
+    final joined = await _store.read('joined');
+    if (joined != null) {
+      receiver.joinedInto.addAll(
+        (_decode(joined)! as Map<String, Object?>).cast<String, String>(),
+      );
+    }
+    return receiver;
   }
 
   Future<void> _saveSenders(DeviceSetReceiver receiver) async {
+    await _store.write('joined', _encode(receiver.joinedInto));
     for (final key in await _store.list('sender/')) {
       await _store.delete(key);
     }
@@ -321,10 +374,8 @@ final class AxtNode {
       final writer =
           checked.schemas[SingleObjectHeader.parse(message.envelope.body)
               .fingerprint]!;
-      if (fit(manifest, writer.text, const []).fits) {
-        final schema = writer.schema;
-        final name = schema is NamedSchema ? schema.fullName : schema.type;
-        fitting[name] = (fitting[name] ?? 0) + 1;
+      if (fit(manifest, writer.schemaText, const []).fits) {
+        fitting[writer.name] = (fitting[writer.name] ?? 0) + 1;
       }
     }
     final state = receiver.stateOf(sender);
@@ -423,6 +474,7 @@ final class AxtNode {
           'taken': applied.held.taken,
         }),
       );
+      await _index(sender, id, applied.value, _decodedSchema(file, applied));
       if (applied.outcome == Outcome.applied ||
           applied.outcome == Outcome.merged ||
           applied.outcome == Outcome.withdrawn) {
@@ -439,6 +491,124 @@ final class AxtNode {
     }
     return FileResult(true, results);
   });
+
+  /// The schema a received record was decoded with: the reader's, or the
+  /// writer's.
+  Schema? _decodedSchema(CheckedFile file, Applied applied) {
+    final type = applied.held.type;
+    final reader = type == null ? null : _readers[type];
+    if (reader != null) return parseTypeSchema(reader);
+    for (final writer in file.schemas.values) {
+      if (writer.name == type) return writer.schema;
+    }
+    return null;
+  }
+
+  /// Keeps the relations with a record target of the record [id] of
+  /// [sender], whose [value] has [schema]; none for a record that is gone.
+  Future<void> _index(
+    String sender,
+    String id,
+    Map<String, Object?>? value,
+    Schema? schema,
+  ) async {
+    // A record that stays, read with no schema here, keeps what is kept.
+    if (value != null && schema == null) return;
+    final key = 'relations/$sender/$id';
+    final relations = value == null
+        ? const <Map<String, Object?>>[]
+        : recordTargets(schema!, value);
+    if (relations.isEmpty) {
+      await _store.delete(key);
+    } else {
+      await _store.write(key, _encode(relations));
+    }
+  }
+
+  Future<(RelationResolver, List<HeldRelation>)> _resolver() async {
+    final receiver = await _receiver();
+    final ownName = _hex(publicKey);
+    final own = KnownSender(ownName, current: {ownName});
+    final emptyBody = _hex(crypto.sha256.convert(const <int>[]).bytes);
+    for (final key in await _store.list('own/')) {
+      final json = _decode((await _store.read(key))!)! as Map<String, Object?>;
+      own.records[key.substring(4)] = KeptRecord(
+        json['version']! as int,
+        json['digest'] == emptyBody ? RecordState.tombstone : RecordState.there,
+      );
+    }
+    for (final key in await _store.list('record/')) {
+      final cut = key.lastIndexOf('/');
+      final name = receiver.senderNamed(key.substring(7, cut));
+      final sender = receiver.senders.where((s) => s.name == name).firstOrNull;
+      if (sender == null) continue;
+      final json = _decode((await _store.read(key))!)! as Map<String, Object?>;
+      final kept = KeptRecord(
+        json['version']! as int,
+        json['state'] == HeldState.there.name
+            ? RecordState.there
+            : RecordState.tombstone,
+      );
+      final id = key.substring(cut + 1);
+      if ((sender.records[id]?.version ?? 0) < kept.version) {
+        sender.records[id] = kept;
+      }
+    }
+    final held = <HeldRelation>[];
+    for (final key in await _store.list('relations/')) {
+      final cut = key.lastIndexOf('/');
+      final holder = key.substring(10, cut);
+      for (final r
+          in (_decode((await _store.read(key))!)! as List<Object?>)
+              .cast<Map<String, Object?>>()) {
+        held.add((
+          id: r['id']! as String,
+          holderSender: holder,
+          holderId: key.substring(cut + 1),
+          targetSender: r['sender'] as String?,
+          targetId: r['target']! as String,
+        ));
+      }
+    }
+    return (RelationResolver(receiver, own), held);
+  }
+
+  /// The record that a relation of the record of [holderSender] points at,
+  /// with [target] the relation's `target` as the record's value holds it;
+  /// null while it does not resolve (`spec/records.md`, section 10.2).
+  Future<RecordAddress?> resolve(
+    String holderSender,
+    Map<String, Object?> target,
+  ) async {
+    final id = target['id'];
+    if (id is! String) return null;
+    final sender = target['sender'];
+    final (resolver, _) = await _resolver();
+    final resolution = resolver.resolve((
+      id: '',
+      holderSender: holderSender,
+      holderId: '',
+      targetSender: sender is Uint8List ? _hex(sender) : null,
+      targetId: id,
+    ));
+    return resolution.resolved
+        ? RecordAddress(resolution.sender!, recordKey(id))
+        : null;
+  }
+
+  /// The relations of the records the app holds, of every sender and its
+  /// own, that resolve to the record [id] of [sender] (section 10.1).
+  Future<List<Link>> linkedFrom(String sender, String id) async {
+    final (resolver, held) = await _resolver();
+    final key = recordKey(id);
+    final name = resolver.receiver.senderNamed(sender);
+    return [
+      for (final linked in resolver.linkedFrom(held))
+        if (linked.sender == name && linked.id == key)
+          for (final f in linked.from)
+            (holder: RecordAddress(f.sender, f.id), relation: f.relation),
+    ];
+  }
 
   Future<int> _stamp() async {
     final stored = await _store.read('stamp');
@@ -497,12 +667,21 @@ final class AxtNode {
   /// For a receiver, the file also holds the `WITHDRAW` of every record that
   /// was sent to it before and is no longer shared with it
   /// (`spec/shares.md`, sections 5.3 and 8.2).
+  ///
+  /// A record goes without its links (`spec/shares.md`, section 19.1) unless
+  /// it is [OutgoingRecord.withLinks], or [ownUser] says that the receiver
+  /// is an app of the app's own user, which gets every record whole.
   Future<Uint8List> writeFile(
     List<OutgoingRecord> shared, {
     Uint8List? receiver,
+    bool ownUser = false,
   }) => _store.transaction(() async {
+    final sharedIds = {
+      for (final record in shared)
+        if (record.value != null) record.id,
+    };
     final datums = <Uint8List>[];
-    final schemas = <int, String>{};
+    final schemas = <int, TypeDescription>{};
     final manifest = AvroCodec(writer: axtSchema('axt.Manifest'))
         .encodeSingleObject(await _revisedManifest());
     datums.add(await _sign(Kind.manifest, null, manifest));
@@ -514,16 +693,30 @@ final class AxtNode {
       final value = record.value;
       final Kind kind;
       final Uint8List body;
+      Uint8List whole;
       if (value == null) {
         kind = Kind.delete;
-        body = Uint8List(0);
+        body = whole = Uint8List(0);
       } else {
         kind = Kind.data;
-        final schema = parseTypeSchema(record.schema!);
-        schemas[schema.crc64] = record.schema!;
-        body = AvroCodec(writer: schema).encodeSingleObject(value);
+        final type = record.type!;
+        schemas[type.fingerprint] = type;
+        final codec = AvroCodec(writer: type.schema);
+        // The version follows the record whole, whatever goes along.
+        whole = codec.encodeSingleObject(value);
+        body = record.withLinks || ownUser
+            ? whole
+            : codec.encodeSingleObject(
+                withoutLinks(
+                  type.schema,
+                  value,
+                  shared: sharedIds,
+                  ownKeys: {_hex(publicKey)},
+                ),
+              );
       }
-      final digest = _hex(crypto.sha256.convert(body).bytes);
+      await _index(_hex(publicKey), id, value, record.type?.schema);
+      final digest = _hex(crypto.sha256.convert(whole).bytes);
       var version = await _versionOf(id, digest);
       final withdrawal = to == null
           ? null
@@ -579,7 +772,9 @@ final class AxtNode {
     }
     final schemasText = schemas.isEmpty
         ? null
-        : utf8.encode('[${schemas.values.join(',')}]');
+        : utf8.encode(
+            jsonEncode([for (final t in schemas.values) t.fileEntry]),
+          );
     final signature = await ed25519.sign(
       _seed,
       fileHeaderSignedBytes(publicKey, schemasText),
